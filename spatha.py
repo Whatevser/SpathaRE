@@ -330,6 +330,10 @@ def decode_button(b):
                 if b[1] & MODIFIERS[n]]
         keys = [HID_KEY_NAMES.get(k, f"0x{k:02X}") for k in b[2:5] if k]
         return "key:" + "+".join(mods + keys) if (mods or keys) else "key:(none)"
+    if t == 0 and b[1] in (0, 1):
+        return "wheel:up" if b[1] == 0 else "wheel:down"
+    if t == 0x0B:
+        return "dpi"
     if t == 3:
         name = {v: k for k, v in MEDIA_KEYS.items()}.get(b[1], f"0x{b[1]:02X}")
         return f"media:{name}"
@@ -340,6 +344,10 @@ def encode_button(spec):
     spec = spec.strip().lower()
     if spec in ("disable", "disabled", "off", "none"):
         return [0xFF, 0, 0, 0, 0]
+    if spec == "dpi":
+        return [0x0B, 0, 0, 0, 0]
+    if spec in ("wheel:up", "wheel:down"):
+        return [0, 0 if spec.endswith("up") else 1, 0, 0, 0]
     kind, _, val = spec.partition(":")
     if kind == "raw":
         vals = [int(x, 16) for x in val.replace(" ", ",").split(",") if x]
@@ -748,7 +756,7 @@ def build_parser():
     s.add_argument("--wireless-brightness", "-w", type=int, choices=range(5))
     s = add("button", cmd_button, "remap a button slot", profile=True)
     s.add_argument("slot", type=int, help="slot 0-13 (see 'show')")
-    s.add_argument("action", help="mouse:left | key:ctrl+c | key:backspace | media:volup | disable | raw:..")
+    s.add_argument("action", help="mouse:left | key:ctrl+c | key:backspace | media:volup | dpi | wheel:up | wheel:down | disable | raw:..")
     s = add("sleep", cmd_sleep, "wireless sleep timer", profile=True)
     s.add_argument("minutes", help="1, 2, 3, 5, 10 or never")
     s = add("battery-alert", cmd_battery_alert, "low battery warning level", profile=True)

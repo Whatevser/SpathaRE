@@ -97,9 +97,9 @@ Armoury's default (from the SYNC DLL) for every zone is `0A 7E FF 00 00 …`: br
                           0x10-0x80 right-hand) + up to 3 HID usage IDs (page 7)
 03 usage 00 00 00         consumer key: B5 next, B6 prev, B7 stop, CD play/pause,
                           E2 mute, E9 vol+, EA vol-
-00 00 / 00 01             Armoury functions 488/489 (probably DPI-related)
+00 00 / 00 01             wheel up / wheel down (confirmed)
 04 01                     Armoury function 250
-0B ..                     Armoury function 485
+0B 00 00 00 00            DPI cycle (confirmed)
 FF ..                     disabled
 ```
 
@@ -108,10 +108,10 @@ Armoury groups the slots as two lists: `[0x83 0x88 0x8D 0xBF 0xC4 0x9C 0x97 0x92
 | Slot | Off | Default | Likely button |
 |---|---|---|---|
 | 0–4 | 0x83–0x97 | mouse L, R, M, Back, Fwd | left, right, wheel click, side back/forward |
-| 5 | 0x9C | `0B 00 00 00 00` | DPI button (probably) |
+| 5 | 0x9C | `0B 00 00 00 00` | DPI button (confirmed) |
 | 6–11 | 0xA1–0xBA | keys 9, =, 8, -, 7, 0 | 6-button side grid |
-| 12 | 0xBF | `00 00 00 00 00` | special function, possibly wheel up or DPI up |
-| 13 | 0xC4 | `00 01 00 00 00` | special function, possibly wheel down or DPI down |
+| 12 | 0xBF | `00 00 00 00 00` | wheel up (confirmed) |
+| 13 | 0xC4 | `00 01 00 00 00` | wheel down (confirmed) |
 
 `spatha.py identify` temporarily maps slots 1–13 to letters and reports which slot each physical button belongs to.
 

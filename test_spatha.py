@@ -173,3 +173,9 @@ def test_identify_maps_and_restores(mouse, monkeypatch, capsys):
     assert seen[0][0:5] == orig[0:5]                       # left click kept
     assert seen[0][5 * 13:5 * 13 + 5] == bytes([2, 0, 0x10, 0, 0])   # slot 13 -> 'm'
     assert bytes(fake.mem[0x183:0x183 + 70]) == orig        # restored
+
+
+def test_special_buttons_roundtrip(mouse):
+    fake, spatha = mouse
+    for spec in ("dpi", "wheel:up", "wheel:down"):
+        assert spatha.decode_button(spatha.encode_button(spec)) == spec
