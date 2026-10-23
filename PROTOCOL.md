@@ -65,7 +65,7 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5). Every per-regist
 | 0x01 | angle snapping | `0x80\|level` = on; Armoury writes `0x06` for off | [C] |
 | 0x02 | lift-off / calibration height | `135 + 3*height` | [C] |
 | 0x03 | ? (LoadSettings reads its low nibble) | | |
-| 0x04/0x05 | DPI stage 1 X / Y | raw; **DPI = (raw+1)×50** (ADNS-9800: 50 CPI steps, 0xA4 = 8200). Armoury default 31 = 1600 | [C] raw, [I] scale |
+| 0x04/0x05 | DPI stage 1 X / Y | raw; **DPI = (raw+1)×50** (ADNS-9800: 50 CPI steps, 0xA4 = 8200). Armoury default 31 = 1600 | [C], confirmed on hardware |
 | 0x06/0x07 | DPI stage 2 X / Y | same as above (default 7 = 400) | |
 | 0x0C | acceleration / deceleration | low nibble accel, high nibble decel, 0–10 each | [C] |
 | 0x11–0x36 | LED zone 3 | see below | [C] |
@@ -103,7 +103,17 @@ Armoury's default (from the SYNC DLL) for every zone is `0A 7E FF 00 00 …`: br
 FF ..                     disabled
 ```
 
-Armoury groups the slots as two lists: `[0x83 0x88 0x8D 0xBF 0xC4 0x9C 0x97 0x92]` (8 buttons) and `[0xA1 0xA6 0xAB 0xB0 0xB5 0xBA]` (6 buttons). Running `spatha.py show` on a mouse with default bindings should reveal which physical button owns each slot.
+Armoury groups the slots as two lists: `[0x83 0x88 0x8D 0xBF 0xC4 0x9C 0x97 0x92]` (8 buttons) and `[0xA1 0xA6 0xAB 0xB0 0xB5 0xBA]` (6 buttons). Factory bindings read from a real mouse:
+
+| Slot | Off | Default | Likely button |
+|---|---|---|---|
+| 0–4 | 0x83–0x97 | mouse L, R, M, Back, Fwd | left, right, wheel click, side back/forward |
+| 5 | 0x9C | `0B 00 00 00 00` | DPI button (probably) |
+| 6–11 | 0xA1–0xBA | keys 9, =, 8, -, 7, 0 | 6-button side grid |
+| 12 | 0xBF | `00 00 00 00 00` | special function, possibly wheel up or DPI up |
+| 13 | 0xC4 | `00 01 00 00 00` | special function, possibly wheel down or DPI down |
+
+`spatha.py identify` temporarily maps slots 1–13 to letters and reports which slot each physical button belongs to.
 
 Keys are stored as raw HID usages, so any key can be bound even where Armoury's UI won't allow it. That likely explains the Backspace issue in the g-helper report: Backspace is `02 00 2A 00 00`.
 

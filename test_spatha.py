@@ -155,3 +155,21 @@ def test_reply_with_echoed_report_id(mouse):
     real = fake.get_feature_report
     fake.get_feature_report = lambda rid, n: [0x0C] + real(rid, n)[:n - 1]
     run(spatha, "info")
+
+
+def test_identify_maps_and_restores(mouse, monkeypatch, capsys):
+    fake, spatha = mouse
+    orig = bytes(fake.mem[0x183:0x183 + 70])
+    seen = []
+    keys = iter(["a", "f", "m", "\r"])
+
+    def fake_getch():
+        seen.append(bytes(fake.mem[0x183:0x183 + 70]))
+        return next(keys)
+    monkeypatch.setattr(spatha, "getch", fake_getch)
+    run(spatha, "--no-backup", "identify")
+    out = capsys.readouterr().out
+    assert "slot  1" in out and "slot  6" in out and "slot 13" in out
+    assert seen[0][0:5] == orig[0:5]                       # left click kept
+    assert seen[0][5 * 13:5 * 13 + 5] == bytes([2, 0, 0x10, 0, 0])   # slot 13 -> 'm'
+    assert bytes(fake.mem[0x183:0x183 + 70]) == orig        # restored

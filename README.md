@@ -33,6 +33,7 @@ python spatha.py button 8 mouse:middle
 python spatha.py sleep 10
 python spatha.py battery-alert 15
 python spatha.py profile 2
+python spatha.py identify             # press buttons to see their slot numbers
 python spatha.py restore original.bin
 ```
 
@@ -52,7 +53,7 @@ python spatha.py raw C4 08 00         # send any command and print the reply
 
 ## Things to verify on a real mouse
 
-1. That `show` displays the DPI values Armoury shows (formula: `(raw+1)*50`).
-2. Which physical button each slot 0–13 belongs to. Remap a slot to `key:a`, press buttons, and watch which one types "a".
+1. ~~DPI formula~~ (confirmed: `(raw+1)*50`).
+2. Which physical button each slot 0–13 belongs to. Run `python spatha.py identify`, press each button, then press Enter. Your bindings are restored afterwards.
 3. Which LED zone is 1, 2 and 3.
 4. What `info` reports for battery and status, both wired and wireless.

@@ -467,6 +467,65 @@ def write_profile_bytes(sp, args, p, changes):
     print(f"profile {p + 1}: {n} byte(s) changed" + ("" if n else " (already set)"))
 
 
+def write_diff(sp, addr, cur, new):
+    for i, (a, b) in enumerate(zip(cur, new)):
+        if a != b:
+            sp.write_byte(addr + i, b)
+
+
+def getch():
+    """Read one key press without waiting for Enter."""
+    if os.name == "nt":
+        import msvcrt
+        return msvcrt.getwch()
+    import termios
+    import tty
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        return sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+IDENTIFY_KEYS = "abcdefghijklm"     # slots 1..13; slot 0 (left click) is kept
+
+
+def cmd_identify(args):
+    sp = open_device(args)
+    p = resolve_profile(sp, args)
+    addr = profile_base(p) + OFF_BUTTONS
+    orig = sp.read(addr, BUTTON_SLOTS * 5)
+    ensure_backup(sp, args)
+    test = bytearray(orig)
+    for slot, letter in enumerate(IDENTIFY_KEYS, start=1):
+        test[5 * slot:5 * slot + 5] = bytes([2, 0, HID_KEYS[letter], 0, 0])
+    try:
+        write_diff(sp, addr, orig, test)
+        sp.commit()
+        print(f"Profile {p + 1}: slots 1-13 temporarily type a-m (left click unchanged).")
+        print("Press mouse buttons / scroll now. Press Enter or Esc on the keyboard to finish.\n")
+        while True:
+            ch = getch()
+            if ch in ("\r", "\n", "\x1b", "\x03"):
+                break
+            if ch in IDENTIFY_KEYS:
+                slot = IDENTIFY_KEYS.index(ch) + 1
+                print(f"  slot {slot:2d} (0x{OFF_BUTTONS + 5 * slot:02X})  "
+                      f"default: {decode_button(orig[5 * slot:5 * slot + 5])}", flush=True)
+            else:
+                print(f"  (key {ch!r} - not one of the test letters)", flush=True)
+    finally:
+        print("\nRestoring original button bindings ...")
+        current = sp.read(addr, BUTTON_SLOTS * 5)
+        write_diff(sp, addr, current, orig)
+        sp.commit()
+        if sp.read(addr, BUTTON_SLOTS * 5) != orig:
+            raise SpathaError("restore did not verify - run 'restore' with your backup")
+        print("restored")
+
+
 def cmd_list(args):
     for d in candidates(args.all):
         print(f"{d['vendor_id']:04X}:{d['product_id']:04X} bcd={d.get('release_number', 0):04X} "
@@ -702,6 +761,7 @@ def build_parser():
     s.add_argument("values", nargs="+")
     s = add("raw", cmd_raw, "send a raw command (hex, without report id) and print the reply")
     s.add_argument("hex", nargs="+")
+    add("identify", cmd_identify, "press buttons to find out which slot each one is", profile=True)
     add("commit", cmd_commit, "send EnableSetting (C4 00)")
     return ap
 
