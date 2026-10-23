@@ -55,7 +55,7 @@ While in driver mode the mouse sends **input report 3**: `03 A2 p` = profile cha
 0x0100 + 0x100*p  profile p (p = 0..5), 0xD1 bytes used                                 [C]
 ```
 
-Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5). Every per-register path accepts p ≤ 5.
+Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is named "Default" on the device. Every per-register path accepts p ≤ 5.
 
 ### Profile block (offsets from `0x100*(p+1)`)
 
@@ -77,6 +77,7 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5). Every per-regist
 | 0xCB | low-battery alert | percent 10/15/20/25/30, `FF` = off | [C] values, [I] meaning |
 | 0xCC | polling rate (wireless) | low nibble, same codes as 0x00 | [C] |
 | 0xD0 | surface calibration mode | `FF` = off, else material+2 | [C] |
+| 0xD1 | profile name | length byte (bytes), then UTF-16LE text, `FF` padded. Factory: "Profile1"–"Profile5", profile 6 = "Default" | seen on hardware |
 
 #### LED zone (38 bytes)
 

@@ -179,3 +179,22 @@ def test_special_buttons_roundtrip(mouse):
     fake, spatha = mouse
     for spec in ("dpi", "wheel:up", "wheel:down"):
         assert spatha.decode_button(spatha.encode_button(spec)) == spec
+
+
+def test_identify_interrupted_then_recovered(mouse, monkeypatch, tmp_path):
+    fake, spatha = mouse
+    orig = bytes(fake.mem[0x183:0x183 + 70])
+
+    def killed():
+        raise SystemExit("window closed")
+    monkeypatch.setattr(spatha, "getch", killed)
+    real_restore = spatha.restore_identify
+    monkeypatch.setattr(spatha, "restore_identify", lambda sp: None)   # finally never ran
+    with pytest.raises(SystemExit):
+        run(spatha, "--no-backup", "identify")
+    assert bytes(fake.mem[0x183:0x183 + 70]) != orig
+    assert (tmp_path / "spatha_identify_saved.bin").exists()
+    monkeypatch.setattr(spatha, "restore_identify", real_restore)
+    run(spatha, "--no-backup", "identify")                  # second run recovers
+    assert bytes(fake.mem[0x183:0x183 + 70]) == orig
+    assert not (tmp_path / "spatha_identify_saved.bin").exists()

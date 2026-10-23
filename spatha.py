@@ -500,12 +500,34 @@ def getch():
 IDENTIFY_KEYS = "abcdefghijklm"     # slots 1..13; slot 0 (left click) is kept
 
 
+IDENTIFY_SAVE = "spatha_identify_saved.bin"
+
+
+def restore_identify(sp, path=IDENTIFY_SAVE):
+    with open(path, "rb") as f:
+        saved = f.read()
+    p, orig = saved[0], saved[1:]
+    addr = profile_base(p) + OFF_BUTTONS
+    write_diff(sp, addr, sp.read(addr, BUTTON_SLOTS * 5), orig)
+    sp.commit()
+    if sp.read(addr, BUTTON_SLOTS * 5) != orig:
+        raise SpathaError("restore did not verify - run 'restore' with your backup")
+    os.remove(path)
+    print(f"restored original button bindings of profile {p + 1}")
+
+
 def cmd_identify(args):
     sp = open_device(args)
+    if os.path.exists(IDENTIFY_SAVE):
+        print(f"Found {IDENTIFY_SAVE} from an interrupted identify run.")
+        restore_identify(sp)
+        return
     p = resolve_profile(sp, args)
     addr = profile_base(p) + OFF_BUTTONS
     orig = sp.read(addr, BUTTON_SLOTS * 5)
     ensure_backup(sp, args)
+    with open(IDENTIFY_SAVE, "wb") as f:      # survives a closed window / kill
+        f.write(bytes([p]) + orig)
     test = bytearray(orig)
     for slot, letter in enumerate(IDENTIFY_KEYS, start=1):
         test[5 * slot:5 * slot + 5] = bytes([2, 0, HID_KEYS[letter], 0, 0])
@@ -526,12 +548,7 @@ def cmd_identify(args):
                 print(f"  (key {ch!r} - not one of the test letters)", flush=True)
     finally:
         print("\nRestoring original button bindings ...")
-        current = sp.read(addr, BUTTON_SLOTS * 5)
-        write_diff(sp, addr, current, orig)
-        sp.commit()
-        if sp.read(addr, BUTTON_SLOTS * 5) != orig:
-            raise SpathaError("restore did not verify - run 'restore' with your backup")
-        print("restored")
+        restore_identify(sp)
 
 
 def cmd_list(args):
@@ -769,7 +786,7 @@ def build_parser():
     s.add_argument("values", nargs="+")
     s = add("raw", cmd_raw, "send a raw command (hex, without report id) and print the reply")
     s.add_argument("hex", nargs="+")
-    add("identify", cmd_identify, "press buttons to find out which slot each one is", profile=True)
+    add("identify", cmd_identify, "press buttons to find out which slot each one is (re-run to finish an interrupted run)", profile=True)
     add("commit", cmd_commit, "send EnableSetting (C4 00)")
     return ap
 
