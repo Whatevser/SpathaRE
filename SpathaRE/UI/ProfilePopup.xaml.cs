@@ -42,6 +42,7 @@ public partial class ProfilePopup : Window
 
     public void ShowNearTray()
     {
+        MouseManager.RefreshBatteryNow();
         Refresh();
         Show();
 

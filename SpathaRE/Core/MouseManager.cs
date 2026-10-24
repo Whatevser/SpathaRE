@@ -34,7 +34,9 @@ public static class MouseManager
     }
 
     private static readonly System.Timers.Timer _hotplugDebounce = new(1000) { AutoReset = false };
-    private static readonly System.Timers.Timer _batteryPoll = new(30_000) { AutoReset = true };
+    /// <summary>Battery and charging state. One request per mouse, so it can run often; the
+    /// original Spatha's dock also reports put-on / taken-off at once (see SpathaDevice).</summary>
+    private static readonly System.Timers.Timer _batteryPoll = new(10_000) { AutoReset = true };
     private static readonly System.Timers.Timer _profilePoll = new(1500) { AutoReset = true };
     /// <summary>A Spatha dock with the mouse switched off doesn't answer, and switching the
     /// mouse on fires no USB event. Retry quietly while that's the situation.</summary>
@@ -248,13 +250,28 @@ public static class MouseManager
 
     // ---- polling ---------------------------------------------------------
 
+    private static int _batteryRunning;
+
+    /// <summary>Reads every mouse's battery now, e.g. when a window opens. Runs in the background.</summary>
+    public static void RefreshBatteryNow() => Task.Run(RefreshBattery);
+
     public static void RefreshBattery()
+    {
+        // The timer and RefreshBatteryNow can overlap; one pass at a time is enough.
+        if (Interlocked.Exchange(ref _batteryRunning, 1) == 1) return;
+        try { RefreshBatteryPass(); }
+        finally { Volatile.Write(ref _batteryRunning, 0); }
+    }
+
+    private static void RefreshBatteryPass()
     {
         foreach (var d in Snapshot())
         {
             if (!d.HasBattery) continue;
             var io = Lock(d);
-            if (!io.Wait(0)) continue;     // never queue behind a user action
+            // Wait for the profile poll (it holds the lock for a few hundred ms over the
+            // dock) instead of skipping: skipping made charging changes go unseen for minutes.
+            if (!io.Wait(4000)) continue;
             try
             {
                 if (!d.IsReady) d.PollWake(); else d.ReadBattery();

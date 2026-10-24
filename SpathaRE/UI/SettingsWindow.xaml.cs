@@ -87,6 +87,8 @@ public partial class SettingsWindow : Window
 
         BuildHotkeys();
         RefreshAll();
+        // Like G-Helper: a fresh battery / charging reading whenever the window comes up.
+        Activated += (_, _) => MouseManager.RefreshBatteryNow();
     }
 
     private void OnDevices(object? s, EventArgs e) => Dispatcher.BeginInvoke(RefreshAll);

@@ -24,8 +24,8 @@ public sealed class SpathaDevice : IMouseDevice
     private string _profileName = "";
     private int _activeDpiStage = -1;
 
-    private HidStream? _events;
-    private Thread? _eventThread;
+    private readonly List<Thread> _eventThreads = new();
+    private readonly List<HidStream> _eventStreams = new();
     private volatile bool _running;
 
     // Wireless through the dock is patchy: single requests time out now and then
@@ -592,64 +592,127 @@ public sealed class SpathaDevice : IMouseDevice
 
     // ---- events pushed by the mouse/dock (03 A2 profile, A3 DPI, A8 battery, AA dock) --
 
+    /// <summary>
+    /// Listens on every readable collection of the mouse / dock (the events came on the
+    /// dock's vendor collection in testing, but listening on all of them costs nothing).
+    /// Each listener survives read errors: it logs, reopens and carries on, so one radio
+    /// hiccup can't silently end event delivery for the rest of the session.
+    /// </summary>
     private void StartEvents()
     {
         if (_running || _eventPath is null || !OperatingSystem.IsWindows()) return;
+        _running = true;
+        List<string> paths;
         try
         {
-            var dev = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId)
+            var me = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId)
                 .FirstOrDefault(d => d.DevicePath.Equals(_eventPath, StringComparison.OrdinalIgnoreCase));
-            if (dev is null || dev.GetMaxInputReportLength() <= 0) return;
-            var cfg = new OpenConfiguration();
-            cfg.SetOption(OpenOption.Exclusive, false);
-            cfg.SetOption(OpenOption.Interruptible, true);
-            _events = dev.Open(cfg);
-            _events.ReadTimeout = 500;
+            int pid = me?.ProductID ?? (_wired ? SpathaDiscovery.PidWired : SpathaDiscovery.PidDock);
+            paths = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId, pid)
+                .Where(d => !d.DevicePath.EndsWith("\\kbd", StringComparison.OrdinalIgnoreCase))
+                .Where(d => { try { return d.GetMaxInputReportLength() > 0; } catch { return false; } })
+                .Select(d => d.DevicePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
         catch (Exception e)
         {
-            Logger.WriteLine("Spatha: event listener unavailable: " + e.Message);
-            return;
+            Logger.WriteLine("Spatha: event listener: enumeration failed: " + e.Message);
+            paths = new() { _eventPath };
         }
-
-        _running = true;
-        _eventThread = new Thread(EventLoop) { IsBackground = true, Name = "Spatha events" };
-        _eventThread.Start();
+        foreach (var path in paths)
+        {
+            var t = new Thread(() => EventLoop(path)) { IsBackground = true, Name = "Spatha events" };
+            lock (_eventThreads) _eventThreads.Add(t);
+            t.Start();
+        }
     }
 
-    private void EventLoop()
+    private HidStream? OpenEvents(string path)
     {
-        var buf = new byte[Math.Max(8, _events!.Device.GetMaxInputReportLength())];
+        try
+        {
+            var dev = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId)
+                .FirstOrDefault(d => d.DevicePath.Equals(path, StringComparison.OrdinalIgnoreCase));
+            if (dev is null) return null;
+            var cfg = new OpenConfiguration();
+            cfg.SetOption(OpenOption.Exclusive, false);
+            cfg.SetOption(OpenOption.Interruptible, true);
+            var stream = dev.Open(cfg);
+            stream.ReadTimeout = 1000;
+            lock (_eventStreams) _eventStreams.Add(stream);
+            return stream;
+        }
+        catch { return null; }
+    }
+
+    private void EventLoop(string path)
+    {
+        string name = path.Contains("col", StringComparison.OrdinalIgnoreCase)
+            ? path[(path.IndexOf("col", StringComparison.OrdinalIgnoreCase))..].Split('#')[0] : "device";
+        int failures = 0;
         while (_running)
         {
-            int n;
-            try { n = _events.Read(buf); }
-            catch (TimeoutException) { continue; }
-            catch { break; }
-            if (n < 3 || buf[0] != 0x03) continue;
-            Contact();
-            switch (buf[1])
+            var stream = OpenEvents(path);
+            if (stream is null)
             {
-                case 0xA3:                       // DPI stage
-                    _activeDpiStage = Math.Clamp(buf[2] & 0x0F, 0, 1);
-                    break;
-                case 0xA8:                       // battery level, sent after it lands on the dock
-                    if (buf[2] <= 100) Battery = BatteryPercent(buf[2], Charging);
-                    break;
-                case 0xAA:                       // 01 = put on the dock, 00 = taken off
-                    Charging = buf[2] == 1;
-                    Logger.WriteLine($"Spatha: {(Charging ? "put on the dock, charging" : "taken off the dock")}");
-                    break;
+                // Mouse / mouse-mode collections Windows keeps for itself land here; give up quietly.
+                if (++failures == 1) Logger.WriteLine($"Spatha: event listener: can't open {name}");
+                if (failures >= 3) return;
+                Thread.Sleep(2000);
+                continue;
             }
-            ExternalChange?.Invoke(this, EventArgs.Empty);
+            Logger.WriteLine($"Spatha: event listener on {name}");
+            failures = 0;
+            var buf = new byte[Math.Max(8, stream.Device.GetMaxInputReportLength())];
+            try
+            {
+                while (_running)
+                {
+                    int n;
+                    try { n = stream.Read(buf); }
+                    catch (TimeoutException) { continue; }
+                    if (n < 3 || buf[0] != 0x03) continue;
+                    HandleEvent(buf);
+                }
+            }
+            catch (Exception e)
+            {
+                if (_running) Logger.WriteLine($"Spatha: event listener on {name} stopped ({e.Message}), reopening");
+            }
+            finally
+            {
+                lock (_eventStreams) _eventStreams.Remove(stream);
+                try { stream.Dispose(); } catch { }
+            }
+            if (_running) Thread.Sleep(500);
         }
-        _running = false;
+    }
+
+    private void HandleEvent(byte[] buf)
+    {
+        if (buf[1] != 0xA2)              // A2 comes in bursts while the radio reconnects
+            Logger.WriteLine($"Spatha: event {buf[0]:X2} {buf[1]:X2} {buf[2]:X2}");
+        Contact();
+        switch (buf[1])
+        {
+            case 0xA3:                       // DPI stage
+                _activeDpiStage = Math.Clamp(buf[2] & 0x0F, 0, 1);
+                break;
+            case 0xA8:                       // battery level, sent after it lands on the dock
+                if (buf[2] <= 100) Battery = BatteryPercent(buf[2], Charging);
+                break;
+            case 0xAA:                       // 01 = put on the dock, 00 = taken off
+                Charging = buf[2] == 1;
+                Logger.WriteLine($"Spatha: {(Charging ? "put on the dock, charging" : "taken off the dock")}");
+                break;
+        }
+        ExternalChange?.Invoke(this, EventArgs.Empty);
     }
 
     public void Dispose()
     {
         _running = false;
-        try { _events?.Dispose(); } catch { }
+        lock (_eventStreams)
+            foreach (var st in _eventStreams) { try { st.Dispose(); } catch { } }
         _p.Dispose();
     }
 }
