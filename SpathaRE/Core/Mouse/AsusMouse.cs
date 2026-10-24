@@ -825,7 +825,7 @@ namespace SpathaRE.Core.Mouse
                     return;
                 }
 
-                Logger.WriteLine(GetDisplayName() + ": Got Battery Percentage " + Battery + "% - Charging:" + Charging);
+                LogIfChanged(ref _lastBatteryLog, GetDisplayName() + ": Got Battery Percentage " + Battery + "% - Charging:" + Charging);
 
                 if (BatteryUpdated is not null)
                 {
@@ -847,7 +847,7 @@ namespace SpathaRE.Core.Mouse
             {
                 string pos = HasAutoPowerOff() ? PowerOffSetting.ToString() : "Not Supported";
                 string lbw = HasLowBatteryWarning() ? LowBatteryWarning.ToString() : "Not Supported";
-                Logger.WriteLine(GetDisplayName() + ": Got Auto Power Off: " + pos + " - Low Battery Warnning at: " + lbw + "%");
+                LogIfChanged(ref _lastEnergyLog, GetDisplayName() + ": Got Auto Power Off: " + pos + " - Low Battery Warnning at: " + lbw + "%");
             }
 
         }
@@ -917,9 +917,19 @@ namespace SpathaRE.Core.Mouse
                     }
                 }
             }
-            Logger.WriteLine(GetDisplayName() + ": Active Profile " + (Profile + 1)
+            LogIfChanged(ref _lastProfileLog, GetDisplayName() + ": Active Profile " + (Profile + 1)
                 + ((DPIProfileCount() > 1 ? ", Active DPI Profile: " + DpiProfile : ""))
                 + ((CanChangeDPICount() ? ", DPI Count: " + CurrentDPIProfileCount : "")));
+        }
+
+        // SpathaRE: these are read every few seconds; only log a line when it says something new.
+        private string? _lastBatteryLog, _lastEnergyLog, _lastProfileLog;
+
+        private static void LogIfChanged(ref string? last, string line)
+        {
+            if (line == last) return;
+            last = line;
+            Logger.WriteLine(line);
         }
 
         public void SetProfile(int profile)
