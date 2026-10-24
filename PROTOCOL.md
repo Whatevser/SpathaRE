@@ -19,7 +19,7 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 * All traffic uses **HID feature reports** (`HidD_SetFeature` / `HidD_GetFeature`). No interrupt endpoints are involved. **[C]**
 * Normal mode: the HID **keyboard** collection (`GUID_DEVINTERFACE_KEYBOARD`), **report ID `0x0C`**, **10-byte** report (ID + 9). **[C]**
 * Alternate mode, chosen by a flag in Armoury: the mouse collection whose `FeatureReportByteLength == 9`, report ID `0x00`, 9 bytes. **[C]**
-* Requests are `RID CMD p1 p2 p3 …` padded with zeros. Replies (GetFeature) begin with **`B0`** in byte 0, so the firmware doesn't echo the report ID. `B1` = busy/NAK and `FF` = no data yet; on either, retry the GetFeature. **[C]**
+* Requests are `RID CMD p1 p2 p3 …` padded with zeros. Replies (GetFeature) begin with **`B0`** in byte 0, so the firmware doesn't echo the report ID. `B1` = busy/NAK and `FF` = no data yet; on either, retry the GetFeature. **[C]** On the dock with the mouse switched off, every command (including `C4 08 00`) gets `B1` and then `B2`: the dock relays everything to the mouse and `B2` appears to mean "mouse not reachable". The dock answers nothing on its own. (hardware)
 * Armoury's timing: SetFeature → ~30 ms → GetFeature, retried up to 15× at 30 ms intervals; the whole command is retried up to 300×. **[C]**
 * The newer `SPATHA_HID_Library` passes buffer lengths of 0x805 (set) and 0x21 (get). Windows accepts oversized buffers, so these lengths don't indicate the real report size.
 
