@@ -70,11 +70,25 @@ public sealed class WinHidTransport : ISpathaTransport
         return Native.HidD_SetFeature(_handle, buf, buf.Length);
     }
 
+    // Replies are at most 33 bytes. Armoury reads exactly 0x21, and the dock (whose
+    // collection declares a 4101-byte report) never answers a full-length read, so
+    // ask for 33 first and only fall back to the declared length if that's refused.
+    private const int ReplyLength = 0x21;
+    private int _readLength = ReplyLength;
+
     public byte[]? GetFeature()
     {
-        var buf = new byte[_featureLength];
+        var buf = new byte[Math.Min(_readLength, _featureLength)];
         buf[0] = ReportId;
-        return Native.HidD_GetFeature(_handle, buf, buf.Length) ? buf : null;
+        if (Native.HidD_GetFeature(_handle, buf, buf.Length)) return buf;
+        if (_readLength >= _featureLength) return null;
+
+        var full = new byte[_featureLength];
+        full[0] = ReportId;
+        if (!Native.HidD_GetFeature(_handle, full, full.Length)) return null;
+        Logger.WriteLine($"Spatha: short reads refused on {Path}, using {_featureLength} bytes");
+        _readLength = _featureLength;
+        return full;
     }
 
     public void Dispose() => _handle.Dispose();
