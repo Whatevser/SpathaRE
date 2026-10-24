@@ -598,16 +598,17 @@ def cmd_info(args):
     sp = open_device(args)
     reg = sp.profile_reg()
     print(f"active profile : {(reg & 15) + 1} of {reg >> 4}   (reg 0x19 = 0x{reg:02X})")
-    labels = {0: "this device's firmware? (receiver: 40 = v1.40)",
-              2: "mouse firmware via receiver? (80 = v1.80)",
-              1: "unknown"}
+    labels = {0: "firmware of the device you're connected to (40 = v1.40)",
+              2: "mouse firmware, only answers through the receiver",
+              1: "unknown, constant"}
     for sel in (0, 2, 1):
         r = sp.query(sel)
         if r is None:
             print(f"C4 08 {sel:02X}       : no reply")
         else:
             tag = " (3C C3 form)" if r[0] == 0x3C else ""
-            print(f"C4 08 {sel:02X}       : {r[2]:3d}  [{r.hex(' ')}]{tag}  {labels[sel]}")
+            print(f"C4 08 {sel:02X}       : {r[2]:3d}  [{r.hex(' ')}]{tag}  {labels[sel]}"
+                  + (f" -> v1.{r[2]:02d}" if sel in (0, 2) and r[0] == 0x55 else ""))
     m = sp.mode_state()
     print(f"C4 06 02 02    : {m if m is not None else 'no reply'}  (meaning unknown)")
 
