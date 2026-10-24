@@ -16,6 +16,8 @@ talk to it, and shares the same settings window.
 | ROG Spatha (original, 2016) | wired `0B05:181C`, dock `0B05:1824` | own, reverse engineered ([PROTOCOL.md](PROTOCOL.md)) |
 | ROG Spatha X | wireless `0B05:1979`, wired `0B05:1977` | G-Helper's AsusMouse (vendored) |
 
+![Buttons page: the button map with callouts, and the Combos list with the Edit combo box](docs/screenshots/buttons-spatha-x.webp)
+
 ## Features
 
 * An Armoury-style **button map**: click a button on the mouse art (or its
@@ -32,6 +34,11 @@ talk to it, and shares the same settings window.
   **across models**: a Spatha profile can go onto a Spatha X and back.
 * **Several mice at once**: pick one in the sidebar or tray popup.
 * Hotkeys and app options are set in the app (Settings → Hotkeys).
+
+| Performance | Lighting | Power |
+|---|---|---|
+| [![Performance page: DPI stages, polling rate, angle snapping, acceleration, button response](docs/screenshots/performance-spatha.webp)](docs/screenshots/performance-spatha.webp) | [![Lighting page: effect, colour and brightness per zone](docs/screenshots/lighting-spatha-x.webp)](docs/screenshots/lighting-spatha-x.webp) | [![Power page: battery level, sleep timer, low-battery alert](docs/screenshots/power-spatha.webp)](docs/screenshots/power-spatha.webp) |
+| original Spatha | Spatha X | original Spatha |
 
 Close Armoury Crate while using SpathaRE. Both programs talking to the mouse at
 the same time works, but they overwrite each other and everything gets slow.
