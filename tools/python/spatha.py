@@ -801,6 +801,48 @@ def cmd_raw(args):
     print(bytes(sp._recv()).hex(" "))
 
 
+def cmd_led_test(args):
+    """Drive the LEDs directly (Aura Sync style) instead of from stored
+    settings: if anything lights, the LEDs work and the problem is in how the
+    stored lighting gets applied."""
+    sp = open_device(args)
+    rgb = parse_color(args.color)
+    frame = bytes([0x10, 0x00, 0xF0, 0x00]) + bytes(rgb) * 3
+    print("entering driver mode (C4 06 02 01)")
+    sp.ctrl(0x06, 0x02, 0x01, 0x00)
+    time.sleep(0.1)
+    hid = _hid()
+    sent = 0
+    try:
+        # Windows only accepts a report ID on the collection that declares
+        # it, so offer the frame to every Spatha collection.
+        for info in candidates():
+            dev = hid.device()
+            try:
+                dev.open_path(info["path"])
+            except (OSError, IOError):
+                continue
+            try:
+                for size in (64, 33, 17, 13, 10):
+                    try:
+                        n = dev.send_feature_report(frame.ljust(size, b"\x00"))
+                    except (OSError, IOError, ValueError):
+                        n = -1
+                    if n is not None and n >= 0:
+                        print(f"  accepted: {size} bytes on {info['path']!r}")
+                        sent += 1
+                        break
+            finally:
+                dev.close()
+        if not sent:
+            print("  no collection accepted report 0x10")
+        print(f"watching for {args.seconds} s - does anything light up?")
+        time.sleep(args.seconds)
+    finally:
+        print("leaving driver mode (C4 06 02 00)")
+        sp.ctrl(0x06, 0x02, 0x00, 0x00)
+
+
 def cmd_commit(args):
     open_device(args).commit()
     print("sent C4 00 (EnableSetting)")
@@ -872,6 +914,9 @@ def build_parser():
     s = add("raw", cmd_raw, "send a raw command (hex, without report id) and print the reply")
     s.add_argument("hex", nargs="+")
     add("identify", cmd_identify, "press buttons to find out which slot each one is (re-run to finish an interrupted run)", profile=True)
+    s = add("led-test", cmd_led_test, "drive the LEDs directly through report 0x10 (Aura Sync preview)")
+    s.add_argument("--color", "-c", default="ffffff", help="RRGGBB (default white)")
+    s.add_argument("--seconds", type=float, default=8)
     add("commit", cmd_commit, "send EnableSetting (C4 00)")
     return ap
 
