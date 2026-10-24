@@ -1,0 +1,44 @@
+<UserControl x:Class="MouseHud.UI.ColorPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border Background="{StaticResource SurfaceAlt}" CornerRadius="8" Padding="12" MaxWidth="460" HorizontalAlignment="Left">
+        <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Border x:Name="Preview" Width="40" Height="40" CornerRadius="8"
+                        BorderBrush="{StaticResource LineHi}" BorderThickness="1" Margin="0,0,12,0"/>
+                <TextBox x:Name="HexBox" Width="96" VerticalAlignment="Center" FontFamily="Consolas"/>
+            </StackPanel>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="36"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="R" Foreground="#FFE07070" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Slider x:Name="RSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="255" Margin="4,1"/>
+                <TextBlock x:Name="RVal" Grid.Row="0" Grid.Column="2" Foreground="{StaticResource FgDim}" FontSize="11" VerticalAlignment="Center" TextAlignment="Right"/>
+
+                <TextBlock Grid.Row="1" Text="G" Foreground="#FF70E090" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Slider x:Name="GSlider" Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="255" Margin="4,1"/>
+                <TextBlock x:Name="GVal" Grid.Row="1" Grid.Column="2" Foreground="{StaticResource FgDim}" FontSize="11" VerticalAlignment="Center" TextAlignment="Right"/>
+
+                <TextBlock Grid.Row="2" Text="B" Foreground="#FF70A0F0" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Slider x:Name="BSlider" Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="255" Margin="4,1"/>
+                <TextBlock x:Name="BVal" Grid.Row="2" Grid.Column="2" Foreground="{StaticResource FgDim}" FontSize="11" VerticalAlignment="Center" TextAlignment="Right"/>
+            </Grid>
+
+            <ItemsControl x:Name="Swatches" Margin="0,10,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

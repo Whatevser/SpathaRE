@@ -1,0 +1,206 @@
+<Window x:Class="MouseHud.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:MouseHud.UI"
+        Title="MouseHud" Width="1200" Height="780" MinWidth="1000" MinHeight="640"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        WindowStartupLocation="CenterScreen" UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="212"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ============ navigation rail ============ -->
+        <Border Background="{StaticResource Rail}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="22,24,20,26">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="MOUSE" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Accent}"/>
+                        <TextBlock Text="HUD" FontSize="17" FontWeight="Light" Foreground="{StaticResource Fg}"/>
+                    </StackPanel>
+                    <TextBlock Text="ROG Spatha · Spatha X" Style="{StaticResource Muted}" FontSize="11" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Bottom" Margin="20,0,20,20">
+                    <Button x:Name="RescanButton" Style="{StaticResource GhostButton}" HorizontalAlignment="Left"
+                            ToolTip="Search for mice again">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFont}" Margin="0,1,8,0"/>
+                            <TextBlock Text="Re-scan devices"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="ResyncButton" Style="{StaticResource GhostButton}" HorizontalAlignment="Left"
+                            ToolTip="Read every setting from the mouse again">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE895;" FontFamily="{StaticResource IconFont}" Margin="0,1,8,0"/>
+                            <TextBlock Text="Reload from mouse"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel x:Name="Nav">
+                    <RadioButton x:Name="NavButtons" Style="{StaticResource NavItem}" GroupName="nav" IsChecked="True" Tag="Buttons">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE962;" FontFamily="{StaticResource IconFont}" FontSize="15" Width="28"/>
+                            <TextBlock Text="Buttons"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Tag="Performance">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xEC4A;" FontFamily="{StaticResource IconFont}" FontSize="15" Width="28"/>
+                            <TextBlock Text="Performance"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Tag="Lighting">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE706;" FontFamily="{StaticResource IconFont}" FontSize="15" Width="28"/>
+                            <TextBlock Text="Lighting"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Tag="Power">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE83F;" FontFamily="{StaticResource IconFont}" FontSize="15" Width="28"/>
+                            <TextBlock Text="Power"/>
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ============ main area ============ -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- header -->
+            <Grid Margin="30,22,30,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock x:Name="DeviceName" Text="Looking for your mouse…" Style="{StaticResource H1}"/>
+                    <WrapPanel x:Name="Chips" Margin="0,8,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="ONBOARD PROFILE" Style="{StaticResource Caption}" Margin="0,0,0,6" HorizontalAlignment="Right"/>
+                    <WrapPanel x:Name="ProfileStrip" HorizontalAlignment="Right"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- pages -->
+            <Grid Grid.Row="1" Margin="30,0,30,0">
+                <!-- read-only / info banner -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border x:Name="Banner" Visibility="Collapsed" Background="{StaticResource AccentSoft}"
+                        BorderBrush="{StaticResource Accent}" BorderThickness="1" CornerRadius="8" Padding="14,9" Margin="0,0,0,12">
+                    <TextBlock x:Name="BannerText" TextWrapping="Wrap" FontSize="12.5"/>
+                </Border>
+
+                <Grid Grid.Row="1" x:Name="Pages">
+                    <!-- Buttons -->
+                    <Grid x:Name="ButtonsPage">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="350"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel Margin="0,0,16,14">
+                            <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Muted}" Margin="4,6,0,0"
+                                       Text="Click a button on the mouse or its callout to change what it does. Changes are saved to the active onboard profile."/>
+                            <ui:SlotMap x:Name="Map" VerticalAlignment="Top"/>
+                        </DockPanel>
+
+                        <Border Grid.Column="1" Style="{StaticResource Card}" Padding="18,16">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top">
+                                    <TextBlock Text="SELECTED BUTTON" Style="{StaticResource Caption}"/>
+                                    <TextBlock x:Name="SlotTitle" Text="Pick a button" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,2"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <TextBlock Text="Currently  " Style="{StaticResource Muted}"/>
+                                        <TextBlock x:Name="SlotCurrent" Text="—" Foreground="{StaticResource Accent}" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <WrapPanel x:Name="CategoryBar" Margin="0,0,0,6"/>
+                                </StackPanel>
+
+                                <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                                    <!-- shortcut recorder (mice that send combos natively) -->
+                                    <Border x:Name="ShortcutPanel" Visibility="Collapsed" Background="{StaticResource SurfaceAlt}"
+                                            CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="RECORD A SHORTCUT" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
+                                            <TextBox x:Name="ShortcutBox" IsReadOnly="True" Text="Click here, then press the keys"
+                                                     Cursor="Hand" FontFamily="Consolas"/>
+                                            <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,6,0,8"
+                                                       Text="Up to 3 keys plus Ctrl / Shift / Alt / Win. The mouse sends it by itself, no software needed."/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button x:Name="ShortcutAssign" Content="Assign" Style="{StaticResource AccentButton}" Margin="0,0,8,0"/>
+                                                <Button x:Name="ShortcutClear" Content="Clear"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- combo replay (Spatha X) -->
+                                    <Border x:Name="ComboPanel" Visibility="Collapsed" Background="{StaticResource SurfaceAlt}"
+                                            CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="KEYSTROKES SENT" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
+                                            <TextBox x:Name="ComboCommand" FontFamily="Consolas"/>
+                                            <TextBlock Text="e.g. Ctrl+C · Win+Shift+S · 0xA2 0x43" Style="{StaticResource Muted}" FontSize="11" Margin="0,5,0,0"/>
+                                            <TextBlock x:Name="ComboStatus" Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Button x:Name="ResetBindings" Content="Reset all buttons to default" HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+
+                                <DockPanel>
+                                    <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Margin="0,0,0,8" ToolTip="Filter"/>
+                                    <ListBox x:Name="ActionList"/>
+                                </DockPanel>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+
+                    <ScrollViewer x:Name="PerformancePage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="PerformancePanel" Margin="0,0,10,10"/>
+                    </ScrollViewer>
+                    <ScrollViewer x:Name="LightingPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="LightingPanel" Margin="0,0,10,10"/>
+                    </ScrollViewer>
+                    <ScrollViewer x:Name="PowerPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="PowerPanel" Margin="0,0,10,10"/>
+                    </ScrollViewer>
+
+                    <!-- no device -->
+                    <Border x:Name="EmptyState" Visibility="Collapsed" Background="{StaticResource Bg}">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
+                            <TextBlock Text="&#xE962;" FontFamily="{StaticResource IconFont}" FontSize="44"
+                                       Foreground="{StaticResource FgFaint}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="No supported mouse found" Style="{StaticResource H1}" HorizontalAlignment="Center" Margin="0,14,0,6"/>
+                            <TextBlock Style="{StaticResource Muted}" TextAlignment="Center"
+                                       Text="Plug in a ROG Spatha or Spatha X (cable or dock) and move it to wake it up. Close Armoury Crate so the two programs don't talk to the mouse at the same time."/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!-- status line -->
+            <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="30,8">
+                <DockPanel>
+                    <TextBlock x:Name="BusyText" DockPanel.Dock="Right" Style="{StaticResource Muted}" Text=""/>
+                    <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" Text="Ready"/>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

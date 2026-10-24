@@ -1,0 +1,34 @@
+<Window x:Class="MouseHud.UI.ProfilePopup"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MouseHud" Width="320" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
+        AllowsTransparency="True" Background="Transparent" Topmost="True"
+        FontFamily="{StaticResource UiFont}" UseLayoutRounding="True">
+
+    <Border Background="{StaticResource Surface}" CornerRadius="12"
+            BorderBrush="{StaticResource LineHi}" BorderThickness="1" Padding="18,16" Margin="8">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+        </Border.Effect>
+        <StackPanel>
+            <TextBlock x:Name="DeviceName" Text="No device" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Fg}"/>
+            <TextBlock x:Name="DeviceStatus" Text="" Style="{StaticResource Muted}" Margin="0,2,0,0"/>
+
+            <Grid x:Name="BatteryBar" Height="5" Margin="0,10,0,0" Visibility="Collapsed">
+                <Border Background="{StaticResource SurfaceHi}" CornerRadius="3"/>
+                <Border x:Name="BatteryFill" Background="{StaticResource Ok}" CornerRadius="3" HorizontalAlignment="Left" Width="0"/>
+            </Grid>
+
+            <TextBlock x:Name="ProfileCaption" Text="ONBOARD PROFILE" Style="{StaticResource Caption}" Margin="0,16,0,8"/>
+            <WrapPanel x:Name="ProfileList"/>
+
+            <Button x:Name="OpenSettings" Margin="0,12,0,0" HorizontalAlignment="Stretch" Style="{StaticResource AccentButton}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" Margin="0,1,8,0"/>
+                    <TextBlock Text="Open settings"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Border>
+</Window>
