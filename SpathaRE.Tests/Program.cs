@@ -121,7 +121,20 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     bool threw = false;
     try { d.SetDpi(0, 3200, null); } catch (IOException) { threw = true; }
     Check(threw && d.Dpi.Stages[0] == 1650, "a write the mouse drops is detected and the model re-read");
-    Check(!d.HasBattery, "wired: no battery");
+    Check(d.HasBattery && d.Battery == 85, "wired: battery shown when the mouse answers over the cable");
+}
+{
+    var p = NewMouse(out var fake);
+    fake.NoBattery = true;
+    var d = new SpathaDevice(p, wired: true);
+    d.Synchronize();
+    Check(!d.HasBattery && d.IsReady, "wired: battery hidden when the cable doesn't answer it");
+    fake.NoBattery = false;
+    fake.Charging = true;
+    var w = new SpathaDevice(NewMouse(out var f2), wired: false);
+    f2.Charging = true;
+    w.Synchronize();
+    Check(w.Charging, "dock: charging flag read");
 }
 
 {
@@ -234,6 +247,7 @@ sealed class FakeSpatha : ISpathaTransport
     public int StaleReplies;
     public int DropWritesTo = -1;
     public bool Asleep;
+    public bool NoBattery;
     public List<byte[]> Sent = new();
     private byte[] _reply = Array.Empty<byte>();
     private int _busy = 1;
@@ -263,6 +277,7 @@ sealed class FakeSpatha : ISpathaTransport
             0xDF => new byte[] { 0xB0, 0xC0, lo, hi, Mem[addr] },
             0xDD => new byte[] { 0xB0, 0xC0, lo, hi, Mem[addr], Mem[addr + 1], Mem[addr + 2], Mem[addr + 3] },
             0xDE => Write(addr, r[4], lo, hi),
+            0xC4 when r[2] == 0x11 && NoBattery => Array.Empty<byte>(),
             0xC4 when r[2] == 0x11 => new byte[] { 0xB0, 0xC4, 0, 0, (byte)BatteryRaw, 0, (byte)(Charging ? 1 : 0) },
             0xC4 when r[2] == 0x08 => new byte[] { 0xB0, 0x55, 0xAA, 40 },
             0xC4 when r[2] == 0x07 => Array.Empty<byte>(),

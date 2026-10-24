@@ -96,7 +96,13 @@ public partial class SettingsWindow : Window
     private void OnBindings(object? s, EventArgs e) =>
         Dispatcher.BeginInvoke(() => { if (s == _dev) RefreshButtons(); });
     private void OnBattery(object? s, EventArgs e) =>
-        Dispatcher.BeginInvoke(() => { RefreshDevices(); if (s == _dev) RefreshHeader(); });
+        Dispatcher.BeginInvoke(() =>
+        {
+            RefreshDevices();
+            if (s != _dev) return;
+            RefreshHeader();
+            if (_page == "Power" && _dev is { IsReady: true }) BuildPower();   // level and "charging" on the battery card
+        });
     private void OnBusy(object? s, bool busy) => Dispatcher.BeginInvoke(() =>
         BusyText.Text = busy ? $"Talking to the {(s as IMouseDevice)?.Name ?? "mouse"}…" : "");
     private void OnWrite(object? s, string? error) => Dispatcher.BeginInvoke(() =>

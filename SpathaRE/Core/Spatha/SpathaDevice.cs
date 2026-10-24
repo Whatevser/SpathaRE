@@ -50,7 +50,8 @@ public sealed class SpathaDevice : IMouseDevice
     public string ConnectionLabel => _wired ? "Wired" : "Wireless";
     public bool IsReady { get; private set; }
 
-    public bool HasBattery => !_wired;
+    /// <summary>Through the dock always; over the cable (where it charges) only if the mouse answers the battery query.</summary>
+    public bool HasBattery => !_wired || !_noBatteryOverCable;
     public int Battery { get; private set; } = -1;
     public bool Charging { get; private set; }
 
@@ -103,11 +104,24 @@ public sealed class SpathaDevice : IMouseDevice
         catch { return ""; }
     }
 
+    /// <summary>Set once the cable connection didn't answer the battery query, so it isn't asked every poll.</summary>
+    private bool _noBatteryOverCable;
+
     public void ReadBattery()
     {
+        if (_noBatteryOverCable) return;
         var b = _p.ReadBattery();
-        if (b is null) { Missed(); return; }      // keep the last reading over a dropped reply
+        if (b is null)
+        {
+            // Over the cable the mouse may not answer at all; through the dock a missed
+            // reply is just patchy radio, so the last reading is kept.
+            if (_wired) { _noBatteryOverCable = true; Logger.WriteLine("Spatha: no battery reply over the cable"); }
+            else Missed();
+            return;
+        }
         Contact();
+        if (b.Value.Percent != Battery || b.Value.Charging != Charging)
+            Logger.WriteLine($"Spatha: battery {b.Value.Percent}% (raw {b.Value.Raw}){(b.Value.Charging ? ", charging" : "")}");
         Battery = b.Value.Percent;
         Charging = b.Value.Charging;
     }
@@ -624,6 +638,7 @@ public sealed class SpathaDevice : IMouseDevice
                     break;
                 case 0xAA:                       // 01 = put on the dock, 00 = taken off
                     Charging = buf[2] == 1;
+                    Logger.WriteLine($"Spatha: {(Charging ? "put on the dock, charging" : "taken off the dock")}");
                     break;
             }
             ExternalChange?.Invoke(this, EventArgs.Empty);
