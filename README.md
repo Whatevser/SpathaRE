@@ -137,7 +137,7 @@ dotnet publish -c Release -r win-x64 -p:Platform=x64
 dotnet publish -c Release -r win-arm64
 ```
 
-Requires the .NET 8 SDK. The output is a framework-dependent single file; add
+Requires the .NET 10 SDK. The output is a framework-dependent single file; add
 `-p:SelfContained=true` if you'd rather not install the runtime. Nothing native
 is compiled, so either architecture can be built from either machine.
 
@@ -156,7 +156,7 @@ wireless, export / import. Pure .NET, so it also runs on Linux and macOS.
 
 | Path | What |
 |---|---|
-| `SpathaRE/` | the app (WPF, .NET 8) |
+| `SpathaRE/` | the app (WPF, .NET 10) |
 | `SpathaRE/Core/Spatha/` | original Spatha: memory layout, protocol, HID transport, device |
 | `SpathaRE/Core/Devices/` | the model both mice share, button names, export format, Spatha X adapter |
 | `SpathaRE/Core/Mouse/`, `Core/Usb/` | Spatha X support, vendored from G-Helper |

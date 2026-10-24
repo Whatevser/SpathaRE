@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>annotations</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -11,6 +11,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>1.0.0</Version>
+    <!-- WFO0003: WinForms would like high-DPI mode set in code instead of app.manifest.
+         The manifest is what WPF reads, and WPF draws everything here, so it stays. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <Product>SpathaRE</Product>
     <ApplicationIcon>Assets\SpathaRE.ico</ApplicationIcon>
     <AssemblyName>SpathaRE</AssemblyName>
