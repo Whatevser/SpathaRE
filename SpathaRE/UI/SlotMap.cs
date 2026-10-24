@@ -266,9 +266,10 @@ public sealed class SlotMap : UserControl
     {
         foreach (var (slot, p) in _parts)
         {
-            string text = labelFor(slot) ?? "—";
-            p.Value.Text = text;
-            p.Box.ToolTip = text;
+            string full = labelFor(slot) ?? "—";
+            // The combo's F-key matters in the Combos list, not on the mouse art.
+            p.Value.Text = Buttons.WithoutCarrier(full);
+            p.Box.ToolTip = full;
         }
     }
 }

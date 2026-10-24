@@ -60,7 +60,7 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     var d = new SpathaDevice(p, wired: false);
     d.Synchronize();
     Check(d.IsReady && d.Profile == 0 && d.ProfileCount == 6, "sync reads profile register");
-    Check(d.ProfileName(0) == "Profile1", "profile name decoded from 0xD1");
+    Check(d.ProfileName(0) == "Profile 1", "Armoury's stored \"Profile1\" shows as \"Profile 1\", like the Spatha X");
     Check(d.Dpi.Stages.SequenceEqual(new[] { 1650, 450 }), "DPI stages from factory profile");
     Check(d.Battery == 85, "battery read on wireless sync");
 
@@ -165,6 +165,10 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
 }
 
 // ---- names shared by both models ----
+Check(SpathaCodec.Describe(SpathaCodec.Key(0x02)) == "Left Shift", "lone modifier named like the key list (Left Shift, not Shift)");
+Check(SpathaCodec.Describe(SpathaCodec.Key(0x08, 0x2B)) == "Win+Tab", "combination uses short modifier names");
+Check(Buttons.WithoutCarrier("Win+Tab (F18)") == "Win+Tab" && Buttons.WithoutCarrier("F5") == "F5", "button map hides the combo's F-key");
+Check(Buttons.ProfileName(2, "Sniper") == "Sniper" && Buttons.ProfileName(2, "") == "Profile 3", "real profile names are kept");
 Check(Buttons.SlotName(DeviceModel.Spatha, 10) == "Side button 1" && Buttons.SlotName(DeviceModel.SpathaX, 8) == "Side button 1",
       "side button 1 has the same name on both models");
 Check(Enumerable.Range(0, 14).All(i => SpathaCodec.SlotNames[i] == Buttons.SlotName(DeviceModel.Spatha, i)),

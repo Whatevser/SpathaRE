@@ -80,7 +80,6 @@ public sealed class AsusMouseDevice : IMouseDevice
         { 0x0000, "Disabled" },
         { 0x00F0, "Play / Pause" }, { 0x00F1, "Stop" }, { 0x00F2, "Next track" },
         { 0x00F3, "Previous track" }, { 0x00F4, "Mute" }, { 0x00F5, "Volume down" }, { 0x00F6, "Volume up" },
-        { 0x0029, "Esc" },
     };
 
     /// <summary>A combo shows the keys it types and the carrier key the mouse sends, e.g. "Alt+Tab (F13)".</summary>
@@ -89,17 +88,22 @@ public sealed class AsusMouseDevice : IMouseDevice
         if (IsCarrier(code) && AsusMouse.CombosByCode.TryGetValue(code, out var combo))
             return $"{Input.ComboDispatcher.Describe(combo.ResolveCommand())} ({CarrierKey(code)})";
         if (CommonNames.TryGetValue(code, out var name)) return name;
+        if (code is >= 0x0004 and <= 0x00E7) return Buttons.KeyName(code);
         return AsusMouse.LabelForActionCode(code);
     }
 
     private static ButtonAction Action(ushort code) => new($"{code:X4}", Label(code), code);
 
-    /// <summary>G-Helper's catalogue with shared names. F13-F24 are dropped from Keyboard:
-    /// they are the combo carriers and already listed under Combos.</summary>
+    /// <summary>G-Helper's catalogue with shared names, except Keyboard, which is the list both
+    /// mice share (same keys, names and order; F13-F24 are the combos). Key codes on the
+    /// Spatha X are HID usages, lone modifiers 0xE0-0xE7.</summary>
     public IReadOnlyList<ActionGroup> ActionCatalog =>
         Mouse.BindingGroups.Select(g => new ActionGroup(g.GroupLabel,
-            g.Items.Where(i => g.GroupLabel == "Combos" || !IsCarrier(i.Code))
-                   .Select(i => Action(i.Code)).ToList())).ToList();
+            g.GroupLabel == "Keyboard"
+                ? Buttons.KeyboardUsages.Select(u => (ushort)u)
+                    .Concat(Enumerable.Range(0xE0, 8).Select(u => (ushort)u))
+                    .Select(Action).ToList()
+                : g.Items.Select(i => Action(i.Code)).ToList())).ToList();
 
     public ButtonAction? GetBinding(int slot)
     {
@@ -311,8 +315,7 @@ public sealed class AsusMouseDevice : IMouseDevice
         (0x00F4, "mute"), (0x00F6, "volume_up"), (0x00F5, "volume_down"),
     };
 
-    private static readonly HashSet<ushort> KeyboardCodes =
-        AsusMouse.KeyboardBindings.Select(k => k.Item1).Where(c => c < 0x00E0 && !IsCarrier(c)).ToHashSet();
+    private static readonly HashSet<ushort> KeyboardCodes = Buttons.KeyboardUsages.Select(u => (ushort)u).ToHashSet();
 
     private void SwitchTo(int profile)
     {

@@ -63,8 +63,8 @@ public sealed class SpathaDevice : IMouseDevice
         profile == DefaultProfile && !AppConfig.GetBool("spatha_allow_default_profile");
 
     public string ProfileName(int profile) =>
-        profile == _profile && _profileName.Length > 0 ? _profileName
-        : profile == DefaultProfile ? "Default" : $"Profile {profile + 1}";
+        profile == DefaultProfile ? "Default"
+        : Devices.Buttons.ProfileName(profile, profile == _profile ? _profileName : null);
 
     private int Base => ProfileBase(_profile);
 
@@ -240,17 +240,9 @@ public sealed class SpathaDevice : IMouseDevice
             .Select(u => Action(Key(0, (byte)u))).ToList();
         var media = MediaKeys.Select(m => Action(SpathaCodec.Media(m.Usage), m.Name)).ToList();
 
-        // Every HID key the firmware can send, in keyboard order. Lone modifiers go in
-        // the modifier byte; everything else is a key usage. F13-F24 are the combo carriers.
-        var keys = new List<ButtonAction>();
-        var usages = Enumerable.Range(0x04, 0x38 - 0x04 + 1)       // A-Z, 1-0, Enter..'/'
-            .Concat(Enumerable.Range(0x39, 0x53 - 0x39 + 1))        // Caps, F1-F12, nav block, NumLock
-            .Concat(Enumerable.Range(0x54, 0x63 - 0x54 + 1))        // numpad
-            .Concat(new[] { 0x65 })                                 // Menu
-            .Where(u => u != 0x32);                                 // non-US # (no key on most layouts)
-        foreach (int u in usages) keys.Add(Action(Key(0, (byte)u)));
-        string[] mods = { "Left Ctrl", "Left Shift", "Left Alt", "Left Win", "Right Ctrl", "Right Shift", "Right Alt", "Right Win" };
-        for (int i = 0; i < 8; i++) keys.Add(Action(Key((byte)(1 << i)), mods[i]));
+        // The shared Keyboard list (same keys, names and order as the Spatha X), then lone modifiers.
+        var keys = Devices.Buttons.KeyboardUsages.Select(u => Action(Key(0, u))).ToList();
+        for (int i = 0; i < 8; i++) keys.Add(Action(Key((byte)(1 << i))));
 
         return new List<ActionGroup>
         {
