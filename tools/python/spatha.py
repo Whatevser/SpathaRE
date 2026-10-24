@@ -17,7 +17,7 @@ import sys
 import time
 
 ASUS_VID = 0x0B05
-SPATHA_PIDS = {0x181C}                     # wired; the RF dongle PID is unknown
+SPATHA_PIDS = {0x181C, 0x1824}              # wired, dock
 SPATHA_BCD = {0x4200, 0x4201, 0xD000, 0xD002}  # bcdDevice values IfSpatha.dll matches on
 
 # --- protocol constants ------------------------------------------------------
