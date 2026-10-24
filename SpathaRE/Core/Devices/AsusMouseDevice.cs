@@ -126,9 +126,6 @@ public sealed class AsusMouseDevice : IMouseDevice
         Mouse.ReadAndLogButtonBindings();
     }
 
-    /// <summary>The Spatha X sends combos as F13-F24 carriers that ComboDispatcher replays.</summary>
-    public bool SupportsShortcuts => false;
-    public ButtonAction? MakeShortcut(Shortcut shortcut) => null;
 
     // ---- DPI ----
 

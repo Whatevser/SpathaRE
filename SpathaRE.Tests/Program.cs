@@ -74,8 +74,8 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     Check(fake.Mem.Skip(0x100 + 0x83 + 35).Take(5).SequenceEqual(new byte[] { 2, 0, 0x2A, 0, 0 }), "bind Backspace to a side button");
     Check(d.GetBinding(7)?.Label == "Backspace", "binding read back");
 
-    var sc = d.MakeShortcut(new Shortcut(0x01, new byte[] { 0x06 }))!;
-    d.SetBinding(8, sc);
+    var bytes = SpathaCodec.Key(0x01, 0x06);
+    d.SetBinding(8, new ButtonAction("ctrl-c", "Ctrl+C", bytes));
     Check(d.GetBinding(8)?.Label == "Ctrl+C", "native shortcut binding");
 
     d.ResetBindings();

@@ -132,13 +132,20 @@ FF ..                     disabled
 
 Armoury groups the slots as two lists: `[0x83 0x88 0x8D 0xBF 0xC4 0x9C 0x97 0x92]` (8 buttons) and `[0xA1 0xA6 0xAB 0xB0 0xB5 0xBA]` (6 buttons). Factory bindings read from a real mouse:
 
-| Slot | Off | Default | Likely button |
+| Slot | Off | Default | Button |
 |---|---|---|---|
-| 0–4 | 0x83–0x97 | mouse L, R, M, Back, Fwd | left, right, wheel click, side back/forward |
+| 0–4 | 0x83–0x97 | mouse L, R, M, Back, Fwd | left, right, wheel click, back, forward |
 | 5 | 0x9C | `0B 00 00 00 00` | DPI button (confirmed) |
-| 6–11 | 0xA1–0xBA | keys 9, =, 8, -, 7, 0 | 6-button side grid |
+| 6 | 0xA1 | key 9 | side button 3 |
+| 7 | 0xA6 | key = | side button 6 |
+| 8 | 0xAB | key 8 | side button 2 |
+| 9 | 0xB0 | key - | side button 5 |
+| 10 | 0xB5 | key 7 | side button 1 |
+| 11 | 0xBA | key 0 | side button 4 |
 | 12 | 0xBF | `00 00 00 00 00` | wheel up (confirmed) |
 | 13 | 0xC4 | `00 01 00 00 00` | wheel down (confirmed) |
+
+Side buttons are numbered as in SpathaRE: top row 1-2-3, bottom row 4-5-6, front to back. Holding the DPI button and pressing a side button switches profile on the mouse itself: 1 → profile 1, 3 → 2, 6 → 3, 5 → 4, 4 → 5, 2 → 6 (hardware).
 
 `spatha.py identify` temporarily maps slots 1–13 to letters and reports which slot each physical button belongs to.
 
@@ -156,5 +163,3 @@ Keys are stored as raw HID usages, so any key can be bound even where Armoury's 
 * What raw effect 14 does (not offered in Armoury's UI). The test mouse's LEDs don't light, so no lighting effect has been seen on hardware.
 * `C4 08 01` (constant `AA`) and the value `C4 06 02 02` returns.
 * Most of the global area 0x000-0x0FF besides the profile register 0x19.
-
-(The dock question listed here before is answered in section 1: PID `0B05:1824`, `Col03`, report ID `0x0C`, 33-byte reads.)

@@ -76,9 +76,6 @@ public static class MouseManager
 
     public static List<IMouseDevice> Snapshot() { lock (_lock) return new List<IMouseDevice>(_devices); }
 
-    /// <summary>The G-Helper mice, for ComboDispatcher.</summary>
-    public static List<AsusMouse> AsusSnapshot() =>
-        Snapshot().OfType<AsusMouseDevice>().Select(d => d.Mouse).ToList();
 
     /// <summary>
     /// The mouse the settings window and hotkeys act on. Defaults to the one
@@ -105,8 +102,6 @@ public static class MouseManager
         }
     }
 
-    /// <summary>Kept for older call sites: same as <see cref="Selected"/>.</summary>
-    public static IMouseDevice? Active => Selected;
 
     private static volatile bool _running;
 

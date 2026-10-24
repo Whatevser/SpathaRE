@@ -2,8 +2,7 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="SpathaRE.app"/>
 
-  <!-- asInvoker: HID feature reports need no elevation. This is also why this
-       build cannot fight Armoury Crate's services the way G-Helper does. -->
+  <!-- asInvoker: HID feature reports need no elevation, so SpathaRE runs as a normal user. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">

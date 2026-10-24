@@ -87,9 +87,9 @@ bottom row 4-5-6, front to back.
 | 5 | DPI + side button 4 |
 | 6 (original Spatha only, "Default") | DPI + side button 2 |
 
-Neither mouse is easy to follow when it does this, so SpathaRE checks the active
-profile in the background (and listens for the event the Spatha's dock sends),
-then reloads the window and shows a tray notification.
+SpathaRE notices: it checks the active profile in the background (and listens
+for the event the Spatha's dock sends), then reloads the window and shows a tray
+notification.
 
 Profile 6 on the original Spatha is its factory "Default". Armoury Crate never
 writes it, so SpathaRE shows it greyed out and read-only. Setting
@@ -122,8 +122,9 @@ so it's back within seconds of moving it.
 
 ## Config
 
-`%APPDATA%\SpathaRE\config.json`, written by the app. Everything below is also
-editable in Settings → Hotkeys; the file is only needed for the advanced keys.
+`%APPDATA%\SpathaRE\config.json`, written by the app. Hotkeys and the two
+switches are set in Settings → Hotkeys, combos on the Buttons page; the file is
+only needed for the last few keys in the table.
 
 | Key | Default | |
 |---|---|---|
@@ -172,6 +173,7 @@ wireless, export / import. Pure .NET, so it also runs on Linux and macOS.
 | `SpathaRE/Core/Devices/` | the model both mice share, button names, export format, Spatha X adapter |
 | `SpathaRE/Core/Mouse/`, `Core/Usb/` | Spatha X support, vendored from G-Helper |
 | `SpathaRE/UI/` | settings window, button map, tray popup |
+| `SpathaRE/Input/`, `Hotkeys/` | combo replay (F13-F24 → keystrokes) and global hotkeys |
 | `SpathaRE.Tests/` | tests against a simulated Spatha |
 | `PROTOCOL.md` | the original Spatha's USB protocol |
 | `tools/python/` | `spatha.py`, the command-line tool used to decode and test the protocol |

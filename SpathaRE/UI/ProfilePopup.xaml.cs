@@ -79,7 +79,7 @@ public partial class ProfilePopup : Window
             block.Children.Add(new TextBlock { Text = d.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Res("Fg") });
 
             string status = !d.IsReady ? $"{d.ConnectionLabel} · asleep or out of range"
-                : d.ConnectionLabel + (d.HasBattery && d.Battery >= 0 ? $" · {d.Battery}%{(d.Charging ? " charging" : "")}" : "");
+                : d.ConnectionLabel + (d.HasBattery && d.Battery >= 0 ? $" · {d.Battery}%{(d.Charging ? " · charging" : "")}" : "");
             block.Children.Add(new TextBlock { Text = status, Style = (Style)Application.Current.Resources["Muted"], Margin = new Thickness(0, 2, 0, 0) });
 
             if (d.IsReady && d.HasBattery && d.Battery >= 0)

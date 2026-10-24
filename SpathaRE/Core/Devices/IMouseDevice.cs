@@ -55,9 +55,6 @@ public interface IMouseDevice : IDisposable
     void ResetBindings();
     /// <summary>Combo carriers (0x68-0x73 = F13-F24) bound in the active profile; ComboDispatcher replays them.</summary>
     IReadOnlyCollection<ushort> BoundCombos { get; }
-    /// <summary>True when the mouse can send a modifier combo by itself.</summary>
-    bool SupportsShortcuts { get; }
-    ButtonAction? MakeShortcut(Shortcut shortcut);
 
     // ---- DPI ----
     DpiInfo Dpi { get; }
@@ -88,9 +85,6 @@ public sealed record ButtonAction(string Key, string Label, object Payload)
 }
 
 public sealed record ActionGroup(string Name, IReadOnlyList<ButtonAction> Actions);
-
-/// <summary>HID modifier bitmask (1 LCtrl, 2 LShift, 4 LAlt, 8 LWin, 0x10.. right) plus up to 3 HID key usages.</summary>
-public sealed record Shortcut(byte Modifiers, IReadOnlyList<byte> Keys);
 
 public sealed class DpiInfo
 {

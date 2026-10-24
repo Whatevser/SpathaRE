@@ -288,14 +288,6 @@ public sealed class SpathaDevice : IMouseDevice
     public void ResetBindings() => WriteProfile(b =>
         Array.Copy(FactoryProfile, OffButtons, b, OffButtons, 5 * SpathaCodec.ButtonSlots));
 
-    public bool SupportsShortcuts => true;
-
-    public ButtonAction? MakeShortcut(Shortcut s)
-    {
-        if (s.Keys.Count == 0 && s.Modifiers == 0) return null;
-        return Action(Key(s.Modifiers, s.Keys.Take(3).ToArray()));
-    }
-
     // ---- DPI -----------------------------------------------------------
 
     public DpiInfo Dpi => new()

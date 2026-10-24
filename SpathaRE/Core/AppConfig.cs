@@ -20,14 +20,6 @@ public static class AppConfig
         _loaded = true;
         try
         {
-            // One-time carry-over from the app's previous name.
-            string old = Path.Combine(Path.GetDirectoryName(Logger.AppPath)!, "MouseHud", "config.json");
-            if (!File.Exists(ConfigFile) && File.Exists(old))
-            {
-                Directory.CreateDirectory(Logger.AppPath);
-                File.Copy(old, ConfigFile);
-            }
-
             if (File.Exists(ConfigFile))
                 _root = JsonNode.Parse(File.ReadAllText(ConfigFile))?.AsObject() ?? new JsonObject();
         }
