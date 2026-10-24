@@ -45,7 +45,7 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 | `C4 0F 00 <off> <v>` | – | live (non-saved) write of a profile register, used for LED preview | [C] |
 | `C4 03 04 01 00` | – | issued after an LED preview | [C] |
 | `C4 04 00/01` | – | start/stop surface calibration | [I] |
-| `C4 11 00` | `B0 C4 ?? ?? <level> ?? <charging>` | **battery**: byte 4 = level %, byte 6 = 1 while charging. Armoury corrects charging readings < 90 (80–89 −5, 70–79 −10, 65–69 −15, 60→50, 55/50→45, 45→40) | [C] (IfSpatha + AacMouseExternHal) |
+| `C4 11 00` | `B0 C4 ?? ?? <level> ?? <charging>` | **battery**: byte 4 = level %, byte 6 = 1 while charging. Armoury corrects charging readings < 90 (80–89 −5, 70–79 −10, 65–69 −15, 60→50, 55/50→45, 45→40) | confirmed on hardware (matches Armoury) |
 | `C4 14 00 02/01 01/00` → `B0 F0 …` | | "KData" mode: sensor data dump (8×16-bit) | [C] |
 | report `10 00 F0 00 + 9 bytes` | – | LED preview, 3×RGB (newer HID library) | [C] |
 

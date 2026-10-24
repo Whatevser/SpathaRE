@@ -631,7 +631,7 @@ def cmd_info(args):
         pct, raw, charging = b
         print(f"battery        : {pct} %{'  (charging)' if charging else ''}   (raw {raw}, C4 11 00)")
     labels = {0: "firmware of the device you're connected to (40 = v1.40)",
-              2: "mouse firmware via receiver; 3C C3 form = charging (inferred)",
+              2: "mouse firmware, only answers through the receiver",
               1: "unknown, constant"}
     for sel in (0, 2, 1):
         r = sp.query(sel)
