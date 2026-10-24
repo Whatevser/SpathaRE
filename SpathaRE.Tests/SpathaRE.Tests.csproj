@@ -12,6 +12,8 @@
     <Compile Include="..\SpathaRE\Core\Logger.cs" Link="Shared\Logger.cs" />
     <Compile Include="..\SpathaRE\Core\AppConfig.cs" Link="Shared\AppConfig.cs" />
     <Compile Include="..\SpathaRE\Core\Devices\IMouseDevice.cs" Link="Shared\IMouseDevice.cs" />
+    <Compile Include="..\SpathaRE\Core\Devices\Buttons.cs" Link="Shared\Buttons.cs" />
+    <Compile Include="..\SpathaRE\Core\Devices\PortableProfile.cs" Link="Shared\PortableProfile.cs" />
     <Compile Include="..\SpathaRE\Core\Spatha\SpathaCodec.cs" Link="Shared\SpathaCodec.cs" />
     <Compile Include="..\SpathaRE\Core\Spatha\SpathaProtocol.cs" Link="Shared\SpathaProtocol.cs" />
     <Compile Include="..\SpathaRE\Core\Spatha\SpathaDevice.cs" Link="Shared\SpathaDevice.cs" />

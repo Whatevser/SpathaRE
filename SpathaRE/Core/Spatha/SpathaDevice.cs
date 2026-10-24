@@ -28,6 +28,14 @@ public sealed class SpathaDevice : IMouseDevice
     private Thread? _eventThread;
     private volatile bool _running;
 
+    // Wireless through the dock is patchy: single requests time out now and then
+    // while the mouse itself works fine. Only call it asleep after it has been
+    // silent for a while, and count anything it sends as a sign of life.
+    private bool _synced;
+    private DateTime _lastContact = DateTime.UtcNow;
+    /// <summary>How long the mouse may stay silent before it is shown as asleep.</summary>
+    public static TimeSpan AsleepAfter { get; set; } = TimeSpan.FromSeconds(60);
+
     public event EventHandler? ExternalChange;
 
     public SpathaDevice(SpathaProtocol protocol, bool wired, string? eventDevicePath = null)
@@ -69,9 +77,22 @@ public sealed class SpathaDevice : IMouseDevice
         _profile = Math.Clamp(reg & 0x0F, 0, _profileCount - 1);
         _block = _p.Read(Base, BlockReadLength);
         _profileName = DecodeName(_block);
-        IsReady = true;
+        _synced = true;
+        Contact();
         if (HasBattery) ReadBattery();
         StartEvents();
+    }
+
+    /// <summary>The mouse answered or sent something.</summary>
+    private void Contact()
+    {
+        _lastContact = DateTime.UtcNow;
+        if (_synced) IsReady = true;
+    }
+
+    private void Missed()
+    {
+        if (DateTime.UtcNow - _lastContact > AsleepAfter) IsReady = false;
     }
 
     private static string DecodeName(byte[] block)
@@ -85,7 +106,8 @@ public sealed class SpathaDevice : IMouseDevice
     public void ReadBattery()
     {
         var b = _p.ReadBattery();
-        if (b is null) { Battery = -1; return; }
+        if (b is null) { Missed(); return; }      // keep the last reading over a dropped reply
+        Contact();
         Battery = b.Value.Percent;
         Charging = b.Value.Charging;
     }
@@ -93,17 +115,36 @@ public sealed class SpathaDevice : IMouseDevice
     public bool PollProfileChanged()
     {
         byte reg;
-        try { reg = _p.ReadByte(RegProfile); }
+        try { reg = _p.ReadByte(RegProfile, rounds: 2); }
         catch (TimeoutException)
         {
-            // Mouse asleep or out of range; the battery poll re-syncs it when it answers again.
-            IsReady = false;
+            Missed();
             return false;
         }
+        Contact();
         int now = reg & 0x0F;
         if (now == _profile) return false;
         Synchronize();
         return true;
+    }
+
+    public bool PollWake()
+    {
+        if (!_synced)
+        {
+            Synchronize();
+            return IsReady;
+        }
+        byte reg;
+        try { reg = _p.ReadByte(RegProfile, rounds: 1); }
+        catch (TimeoutException) { return false; }
+
+        // Back. The settings read before it fell asleep are still valid unless the
+        // profile moved, so this costs one request instead of a full re-read.
+        Contact();
+        if ((reg & 0x0F) != _profile) Synchronize();
+        else if (HasBattery) ReadBattery();
+        return IsReady;
     }
 
     public void SetProfile(int profile)
@@ -152,7 +193,7 @@ public sealed class SpathaDevice : IMouseDevice
     // ---- buttons -------------------------------------------------------
 
     public IReadOnlyList<ButtonSlot> ButtonSlots { get; } =
-        SlotNames.Select((n, i) => new ButtonSlot(i, n)).ToList();
+        Enumerable.Range(0, SpathaCodec.ButtonSlots).Select(i => new ButtonSlot(i, SlotNames[i])).ToList();
 
     private static ButtonAction Action(byte[] bytes, string? label = null) =>
         new(Convert.ToHexString(bytes), label ?? Describe(bytes), bytes);
@@ -335,7 +376,158 @@ public sealed class SpathaDevice : IMouseDevice
         });
     }
 
-    // ---- events pushed by the mouse (03 A2 profile, 03 A3 DPI) ----------
+    // ---- export / import -----------------------------------------------
+
+    private const int ButtonBytes = 5 * SpathaCodec.ButtonSlots;
+
+    /// <summary>The DPI and button bytes of any profile, read straight from memory
+    /// (no profile switch needed). Other offsets are left zero.</summary>
+    private byte[] ReadPortableBytes(int profile)
+    {
+        if (profile == _profile && IsReady) return (byte[])_block.Clone();
+        var b = new byte[BlockReadLength];
+        int baseAddr = ProfileBase(profile);
+        _p.Read(baseAddr + OffDpi1X, 4).CopyTo(b, OffDpi1X);
+        _p.Read(baseAddr + OffButtons, ButtonBytes).CopyTo(b, OffButtons);
+        return b;
+    }
+
+    public PortableProfile ExportProfile(int profile)
+    {
+        var b = ReadPortableBytes(profile);
+        var p = new PortableProfile
+        {
+            Name = ProfileName(profile),
+            Index = profile,
+            Dpi = { DpiFromRaw(b[OffDpi1X]), DpiFromRaw(b[OffDpi2X]) },
+        };
+        for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
+            p.Buttons[Devices.Buttons.SpathaSlots[i]] = ToPortable(b.AsSpan(OffButtons + 5 * i, 5).ToArray());
+        return p;
+    }
+
+    public void ImportProfile(int profile, PortableProfile data, ImportReport report)
+    {
+        string where = $"Profile {profile + 1}";
+        if (profile < 0 || profile >= _profileCount) { report.Note($"{where}: this mouse has no such profile, skipped."); return; }
+        if (IsProfileReadOnly(profile)) { report.Note($"{where} (Default) is read-only, skipped."); return; }
+
+        var current = ReadPortableBytes(profile);
+        var wanted = (byte[])current.Clone();
+
+        for (int i = 0; i < Math.Min(2, data.Dpi.Count); i++)
+        {
+            byte raw = RawFromDpi(data.Dpi[i]);
+            if (data.Dpi[i] > DpiMax || data.Dpi[i] < DpiMin)
+                report.Note($"{where}: DPI stage {i + 1} {data.Dpi[i]} is outside {DpiMin}-{DpiMax}, set to {DpiFromRaw(raw)}.");
+            int x = i == 0 ? OffDpi1X : OffDpi2X;
+            wanted[x] = raw;
+            wanted[x + 1] = raw;
+        }
+        if (data.Dpi.Count > 2)
+            report.Note($"{where}: the Spatha has 2 DPI stages, stages 3-{data.Dpi.Count} were left out.");
+
+        for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
+        {
+            string id = Devices.Buttons.SpathaSlots[i];
+            if (!data.Buttons.TryGetValue(id, out var action)) continue;
+            // Already does that (the mouse keeps stray bytes after some codes): leave it.
+            if (ToPortable(current.AsSpan(OffButtons + 5 * i, 5).ToArray()).SameAs(action)) continue;
+            var bytes = FromPortable(action, out string? why);
+            if (bytes is null)
+            {
+                report.Note($"{where}: {Devices.Buttons.Name(id)}: {why}, left unchanged.");
+                continue;
+            }
+            bytes.CopyTo(wanted, OffButtons + 5 * i);
+        }
+
+        int baseAddr = ProfileBase(profile);
+        int changed = 0;
+        foreach (var (off, len) in new[] { (OffDpi1X, 4), (OffButtons, ButtonBytes) })
+        {
+            changed += _p.WriteDiff(baseAddr + off, current.AsSpan(off, len), wanted.AsSpan(off, len));
+            var check = _p.Read(baseAddr + off, len);
+            if (!check.AsSpan().SequenceEqual(wanted.AsSpan(off, len)))
+                throw new IOException($"Verify failed in profile {profile + 1}");
+        }
+        if (changed > 0) _p.Commit();
+        if (profile == _profile && IsReady)
+        {
+            Array.Copy(wanted, OffDpi1X, _block, OffDpi1X, 4);
+            Array.Copy(wanted, OffButtons, _block, OffButtons, ButtonBytes);
+        }
+        report.Written++;
+        Logger.WriteLine($"Spatha: imported into profile {profile + 1}: {changed} byte(s) written");
+    }
+
+    private static readonly (byte Mask, string Name)[] PortableMouse =
+        { (1, "left"), (2, "right"), (4, "middle"), (8, "back"), (16, "forward") };
+
+    private static readonly (byte Usage, string Name)[] PortableMedia =
+    {
+        (0xCD, "play_pause"), (0xB7, "stop"), (0xB5, "next"), (0xB6, "previous"),
+        (0xE2, "mute"), (0xE9, "volume_up"), (0xEA, "volume_down"),
+    };
+
+    public static PortableAction ToPortable(byte[] b)
+    {
+        PortableAction a;
+        switch (b[0])
+        {
+            case 0xFF: a = PortableAction.Simple("disabled"); break;
+            case 0x0B: a = PortableAction.Simple("dpi"); break;
+            case 0x00 when b[1] <= 1: a = PortableAction.Wheel(b[1] == 0 ? "up" : "down"); break;
+            case 0x01 when PortableMouse.Any(m => (b[1] & m.Mask) != 0):
+                a = PortableAction.Mouse(PortableMouse.First(m => (b[1] & m.Mask) != 0).Name);
+                break;
+            case 0x02: a = PortableAction.Key(b[1], b.Skip(2)); break;
+            case 0x03 when PortableMedia.Any(m => m.Usage == b[1]):
+                a = PortableAction.OfMedia(PortableMedia.First(m => m.Usage == b[1]).Name);
+                break;
+            default: a = new PortableAction { Type = "raw", Model = "Spatha", Raw = Convert.ToHexString(b) }; break;
+        }
+        a.Label = Describe(b);
+        return a;
+    }
+
+    /// <summary>Null when the Spatha can't do it; <paramref name="why"/> says why.</summary>
+    public static byte[]? FromPortable(PortableAction a, out string? why)
+    {
+        why = null;
+        switch (a.Type)
+        {
+            case "disabled": return (byte[])Disabled.Clone();
+            case "dpi": return (byte[])DpiButton.Clone();
+            case "wheel": return (byte[])(a.Button == "down" ? WheelDown : WheelUp).Clone();
+            case "mouse":
+                foreach (var (mask, name) in PortableMouse)
+                    if (name == a.Button) return SpathaCodec.Mouse(mask);
+                break;
+            case "media":
+                foreach (var (usage, name) in PortableMedia)
+                    if (name == a.Media) return SpathaCodec.Media(usage);
+                break;
+            case "key":
+            {
+                var keys = a.Keys ?? new List<byte>();
+                if (keys.Count == 0 && a.Modifiers == 0) { why = "empty key combination"; return null; }
+                if (keys.Count > 3) { why = $"{a.Label ?? "the combination"} has more than 3 keys"; return null; }
+                return Key(a.Modifiers, keys.ToArray());
+            }
+            case "raw" when a.Model == "Spatha" && a.Raw?.Length == 10:
+                return Convert.FromHexString(a.Raw);
+            case "side":
+                why = $"\"{Devices.Buttons.Name(a.Button ?? "")}\" as a function only exists on the Spatha X";
+                return null;
+            case "double_click": why = "double click only exists on the Spatha X"; return null;
+            case "target_focus": why = "target focus only exists on the Spatha X"; return null;
+        }
+        why ??= $"\"{a.Label ?? a.Type}\" isn't supported on the Spatha";
+        return null;
+    }
+
+    // ---- events pushed by the mouse/dock (03 A2 profile, A3 DPI, A8 battery, AA dock) --
 
     private void StartEvents()
     {
@@ -372,15 +564,20 @@ public sealed class SpathaDevice : IMouseDevice
             catch (TimeoutException) { continue; }
             catch { break; }
             if (n < 3 || buf[0] != 0x03) continue;
-            if (buf[1] == 0xA3)
+            Contact();
+            switch (buf[1])
             {
-                _activeDpiStage = Math.Clamp(buf[2] & 0x0F, 0, 1);
-                ExternalChange?.Invoke(this, EventArgs.Empty);
+                case 0xA3:                       // DPI stage
+                    _activeDpiStage = Math.Clamp(buf[2] & 0x0F, 0, 1);
+                    break;
+                case 0xA8:                       // battery level, sent after it lands on the dock
+                    if (buf[2] <= 100) Battery = BatteryPercent(buf[2], Charging);
+                    break;
+                case 0xAA:                       // 01 = put on the dock, 00 = taken off
+                    Charging = buf[2] == 1;
+                    break;
             }
-            else if (buf[1] == 0xA2)
-            {
-                ExternalChange?.Invoke(this, EventArgs.Empty);
-            }
+            ExternalChange?.Invoke(this, EventArgs.Empty);
         }
         _running = false;
     }

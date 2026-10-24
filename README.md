@@ -2,203 +2,137 @@
 
 <img src="SpathaRE/Assets/SpathaRE.png" width="64" align="right">
 
-A lightweight Windows tray app for ASUS ROG Spatha mice, the first tool to configure the **original 2016 ROG Spatha** without Armoury Crate. Derived from
-[G-Helper](https://github.com/seerge/g-helper) by seerge, with everything
-except the peripheral (HID) stack removed.
+A lightweight Windows tray app that configures the **original 2016 ASUS ROG
+Spatha** without Armoury Crate. As far as I know it's the first tool that can.
+The mouse's USB protocol was reverse engineered from Armoury Crate's DLLs and
+checked on a real mouse; the write-up is in [PROTOCOL.md](PROTOCOL.md).
 
-**Supports:**
+I also own a **Spatha X**, so the app supports it too. That support is borrowed
+from [G-Helper](https://github.com/seerge/g-helper), which already knew how to
+talk to it, and shares the same settings window.
 
 | Mouse | USB IDs | Protocol |
 |---|---|---|
-| ROG Spatha X | wireless `0B05:1979`, wired `0B05:1977` | G-Helper's AsusMouse (vendored, unchanged) |
-| ROG Spatha (original, 2016) | wired `0B05:181C`, dock `0B05:1824` | reverse engineered from Armoury Crate, see [PROTOCOL.md](PROTOCOL.md) |
+| ROG Spatha (original, 2016) | wired `0B05:181C`, dock `0B05:1824` | own, reverse engineered ([PROTOCOL.md](PROTOCOL.md)) |
+| ROG Spatha X | wireless `0B05:1979`, wired `0B05:1977` | G-Helper's AsusMouse (vendored) |
 
-Both get the same settings window: an Armoury-style button map with
-callouts, DPI stages, polling, angle snapping, acceleration, lighting per zone,
-sleep timer, low-battery alert, battery level and onboard profile switching.
-Several mice can be connected at once; pick one in the sidebar or tray popup.
+## Features
 
-## Repository
+* An Armoury-style **button map**: click a button on the mouse art (or its
+  callout) and pick what it does: mouse functions, keys, media keys, DPI switch,
+  or a **custom key combination** such as Ctrl+Shift+Esc.
+* **DPI** stages, polling rate, angle snapping, acceleration, button response.
+* **Lighting** per zone (logo, scroll wheel, base), sleep timer, low-battery
+  alert, battery level.
+* **Onboard profiles**: switch from the window, the tray popup or global
+  hotkeys. Hover a profile number to see, in red, which buttons switch to it on
+  the mouse itself.
+* **Export / import** button settings and DPI, one profile or the whole set,
+  **across models**: a Spatha profile can go onto a Spatha X and back.
+* **Several mice at once**: pick one in the sidebar or tray popup.
+* Hotkeys and app options are set in the app (Settings → Hotkeys).
 
-| Path | What |
+Close Armoury Crate while using SpathaRE. Both programs talking to the mouse at
+the same time works, but they overwrite each other and everything gets slow.
+
+## Using it
+
+### Custom key combinations
+
+* **Original Spatha**: the mouse sends combinations by itself. Under Buttons,
+  pick the button, open the **Custom combo** tab, click the box, press the keys
+  together (up to 3 keys plus Ctrl / Shift / Alt / Win) and click *Assign*. It
+  keeps working without SpathaRE running.
+* **Spatha X**: the mouse can't send a combination. Instead a button can send
+  one of twelve spare keys, F13-F24, and SpathaRE types the real combination when
+  it sees that key. The **Combos** tab lists them as e.g. `Alt+Tab (F13)`: the
+  keys typed, then the spare key in brackets. Pick one for the button, then
+  change its keys in the *Edit combo* box below the list (click, press the keys,
+  *Save keys*). Combinations Windows keeps for itself, like Alt+Tab, can be
+  typed instead: click the box, press Backspace and type `Alt+Tab`. A combo is
+  shared by every button and profile that uses the same spare key. This needs
+  SpathaRE running.
+
+### Profiles
+
+Both mice keep their settings in onboard profiles: the original Spatha has 6,
+the Spatha X 5. The window always edits the **active** profile.
+
+Both switch profiles by themselves when you **hold the DPI button and press a
+side button**. Side buttons are numbered as on the button map: top row 1-2-3,
+bottom row 4-5-6, front to back.
+
+| Profile | On the mouse |
 |---|---|
-| `SpathaRE/` | the app (WPF, .NET 8) |
-| `SpathaRE.Tests/` | protocol tests against a simulated Spatha, run anywhere with `dotnet run` |
-| `PROTOCOL.md` | the original Spatha's USB protocol, fully documented |
-| `tools/python/` | `spatha.py`, the Python tool used to decode and test the protocol |
+| 1 | DPI + side button 1 |
+| 2 | DPI + side button 3 |
+| 3 | DPI + side button 6 |
+| 4 | DPI + side button 5 |
+| 5 | DPI + side button 4 |
+| 6 (original Spatha only, "Default") | DPI + side button 2 |
 
----
+Neither mouse is easy to follow when it does this, so SpathaRE checks the active
+profile in the background (and listens for the event the Spatha's dock sends),
+then reloads the window and shows a tray notification.
 
-## Why this exists
+Profile 6 on the original Spatha is its factory "Default". Armoury Crate never
+writes it, so SpathaRE shows it greyed out and read-only. Setting
+`"spatha_allow_default_profile": 1` in the config unlocks it.
 
-G-Helper does laptop control *and* peripheral control in one binary. The laptop
-side is what causes both problems worth avoiding:
+### Export and import
 
-| Problem | Where it lives in G-Helper | Status here |
+*Export* (next to the profile numbers) saves the button functions and DPI of the
+active profile, or of all profiles, to a `.json` file. *Import* writes a file
+back: a single profile goes into the active profile, a set goes into the same
+profile numbers.
+
+Files work across models. Buttons are matched by position, so side button 3
+stays side button 3, and DPI stages 1 and 2 are copied (the original Spatha has
+two). Anything the target can't do is left unchanged and listed afterwards:
+"Side button" functions and double click only exist on the Spatha X. On the
+Spatha X, key combinations from the Spatha go into a free F13-F24 combo.
+Lighting and the other settings are not included on purpose; the two models
+store them too differently to move safely.
+
+### Wireless (original Spatha)
+
+The dock relays every request to the mouse over radio, and single requests time
+out now and then even while the mouse works fine. SpathaRE keeps showing the
+mouse until it has been silent for a minute, counts anything the dock sends
+(battery, put on / taken off the dock, profile and DPI changes) as a sign of
+life, and checks a sleeping mouse every couple of seconds with a single request,
+so it's back within seconds of moving it.
+
+## Config
+
+`%APPDATA%\SpathaRE\config.json`, written by the app. Everything below is also
+editable in Settings → Hotkeys; the file is only needed for the advanced keys.
+
+| Key | Default | |
 |---|---|---|
-| Fights Armoury Crate / OEM apps | `AsusACPI.cs`, `Helpers/AsusService.cs` | **Deleted** |
-| Pinned to x64 | `NvAPIWrapper.Net` (nvapi64.dll), `Pawn/RyzenSMU.bin`, `Pawn/IntelMSR.bin` | **Deleted** |
+| `hotkey_profile_1` … `hotkey_profile_6` | `Ctrl+Alt+1` … `Ctrl+Alt+6` | switch the selected mouse's profile; `""` turns one off |
+| `hotkey_profile_next` / `_prev` | `Ctrl+Alt+OemPlus` / `OemMinus` | next / previous profile |
+| `hotkey_popup` | `Ctrl+Alt+M` | show the tray popup |
+| `notify_profile_change` | `1` | tray notification when the profile is switched on the mouse |
+| `mouse_combo_F13` … `mouse_combo_F24` | see the Combos tab | keys each Spatha X combo types (`Ctrl+C` or hex virtual keys `0xA2 0x43`) |
+| `combo_hold_ms` | `10` | how long combo keys are held down |
+| `profile_poll_ms` | `1500` | how often the active profile is checked; `0` turns it off |
+| `spatha_allow_default_profile` | `0` | allow writing the original Spatha's Default profile |
+| `usb_packet_logger` | `0` | log every Spatha X USB packet, for troubleshooting |
 
-What's left is pure HID feature reports over `HidSharp`. No WMI, no ACPI, no
-driver, no service, no elevation. It cannot break an OEM app because it never
-touches one.
-
-One caveat that *isn't* solved by deleting code: if Armoury Crate is running at
-the same time, both apps will talk to the same HID interface and overwrite each
-other's writes. That's coexistence, not hooking — but you still want AC's mouse
-service stopped.
-
-## Layout
-
-```
-Core/
-  Devices/
-    IMouseDevice.cs       UI-facing model shared by every mouse
-    AsusMouseDevice.cs    adapter: G-Helper AsusMouse (Spatha X) -> IMouseDevice
-  Spatha/                 original ROG Spatha
-    SpathaCodec.cs        memory layout, value encodings, button codec, factory profile
-    SpathaProtocol.cs     request/reply engine (DD/DE/DF reads+writes, C4 control)
-    WinHidTransport.cs    feature reports via hid.dll, collection discovery
-    SpathaDevice.cs       IMouseDevice for the Spatha
-  MouseManager.cs         detection, hotplug, polling, serialised device I/O
-  Usb/, Mouse/            vendored from G-Helper
-UI/
-  SettingsWindow          nav rail + Buttons / Performance / Lighting / Power
-  SlotMap.cs, SpathaArt.cs  Armoury-style button map (art in Assets/)
-  ProfilePopup            tray popup: battery, profiles
-  ColorPicker, HidKeys.cs
-Input/, Hotkeys/          combo replay (Spatha X), global hotkeys
-SpathaRE.Tests/           Spatha protocol tests against a simulated mouse (runs anywhere)
-```
-
-## Original Spatha notes
-
-* Settings live in 6 onboard profiles. The window edits the **active** one;
-  switching profiles in the header switches the mouse's profile.
-* Profile 6 is the mouse's factory "Default" profile. Armoury Crate never
-  writes it, so SpathaRE keeps it read-only. Set
-  `"spatha_allow_default_profile": 1` in config to unlock it.
-* Buttons can be bound to **real key shortcuts** (Ctrl+Shift+Esc, Backspace,
-  ...). The mouse sends them by itself, no software needed: use the
-  *Shortcut* tab under Buttons and press the keys.
-* Every write is read back and verified, then committed with the same
-  "EnableSetting" command Armoury uses.
-* Close Armoury Crate first. Both programs talking to the mouse at once
-  works but is slow and confusing.
-
-## Multi-key bindings (Ctrl+C, Alt+Tab, ...)
-
-The mouse cannot emit a modifier combo. Binding a button to "Copy" makes the
-firmware send a **carrier key** — F13-F24, one per combo action code
-0x0068-0x0073 — and the host is expected to replay the real sequence. Without
-that host half, the button sends F13 and nothing happens.
-
-`ComboDispatcher` registers a global hotkey for each carrier that is actually
-bound (not all twelve — that would take F13-F24 from other apps for nothing) and
-rebuilds the set whenever bindings, profile or device change. `KeyboardSynth`
-then replays via `SendInput`.
-
-Two details that matter:
-
-- **Release order is reversed.** Ctrl must still be held when C goes up, or the
-  target app sees a bare C.
-- **Real scan codes are sent**, and the extended-key flag is set only for keys
-  that are genuinely extended. Games reading raw input or DirectInput commonly
-  ignore synthetic events that carry no scan code.
-
-Each action's keystrokes are editable in Settings → Buttons, or directly in
-config as `mouse_combo_F13` ... `mouse_combo_F24`. Both `Ctrl+C` and the raw
-`0xA2 0x43` hex form are accepted. `combo_hold_ms` (default 10) sets how long
-keys are held down.
-
-If another application already owns a carrier key, registration fails and the
-log says so explicitly — that button will silently do nothing until the conflict
-is resolved.
-
-## Onboard profile tracking
-
-The Spatha X switches profiles from its own button combo and does not notify the
-host. `MouseManager` therefore polls a single 0x12 status read on a timer
-(`profile_poll_ms`, default 1000, minimum 250, `0` disables) and only does a full
-re-sync when the value actually moved — profiles carry their own DPI, lighting
-and bindings, so everything on screen has to be re-read.
-
-Polls are skipped rather than queued when the HID bus is busy, so a poll can
-never stack up behind a slow write. External changes raise `ProfileChanged` with
-`External = true` and pop a tray balloon (`notify_profile_change`).
-
-### Changes to vendored files
-
-Kept deliberately minimal so upstream fixes can be re-applied by hand:
-
-1. `GHelper` -> `SpathaRE` namespace rename (the app was briefly called MouseHud) (mechanical, whole-token).
-2. Namespace flattening: `AnimeMatrix.Communication[.Platform]` -> `Core.Usb`,
-   `Peripherals[.Mouse[.Models]]` -> `Core.Mouse[.Models]`.
-3. `AsusMouse.cs`: removed `MapAuraToLightingMode()` and `SyncFromKeyboardAura()`.
-   These were the only two methods referencing keyboard Aura state, and they
-   dragged in `USB/Aura.cs`, which drags in the whole laptop stack.
-
-Nothing else. `AsusMouse.cs` still calls `Logger` and `AppConfig` at four sites;
-the shims in `Core/` are API-compatible on purpose so the file needs no edits.
+Hotkey gestures use WPF key names (`F13`, `NumPad1`, `OemPlus`, `OemTilde`).
 
 ## Build
 
 ```powershell
 dotnet build -c Release
+dotnet publish -c Release -r win-x64 -p:Platform=x64
 dotnet publish -c Release -r win-arm64
 ```
 
-Requires the .NET 8 SDK. To build an x64 binary instead:
-`dotnet publish -c Release -r win-x64 -p:Platform=x64`. Output is framework-dependent single-file; add
-`-p:SelfContained=true` if you'd rather not install the runtime.
-
-To cross-build from an x64 box, `-r win-arm64` still works — nothing native is
-compiled, only the apphost is architecture-specific.
-
-## Config
-
-`%APPDATA%\SpathaRE\config.json`. Created on first write. Hotkey gestures use
-WPF `Key` names, so `F13`, `NumPad1`, `OemPlus`, `OemTilde` all parse. Set a
-value to `""` to disable that hotkey.
-
-```json
-{
-  "hotkey_profile_1":    "Ctrl+Alt+1",
-  "hotkey_profile_2":    "Ctrl+Alt+2",
-  "hotkey_profile_3":    "Ctrl+Alt+3",
-  "hotkey_profile_4":    "Ctrl+Alt+4",
-  "hotkey_profile_5":    "Ctrl+Alt+5",
-  "hotkey_profile_next": "Ctrl+Alt+OemPlus",
-  "hotkey_profile_prev": "Ctrl+Alt+OemMinus",
-  "hotkey_popup":        "Ctrl+Alt+M",
-  "usb_packet_logger":   0
-}
-```
-
-Set `usb_packet_logger` to `1` to dump every HID exchange to the log — that's the
-switch you'll want when mapping the original Spatha's protocol.
-
-Tray menu -> *Reload hotkeys* re-reads the file without restarting.
-
-## Spatha X specifics
-
-The device stores **5 profiles onboard**, each with its own DPI stages, lighting
-and button bindings. `SetProfile()` switches the hardware profile, so a hotkey
-press swaps everything at once — no software layer intercepting input.
-
-14 rebindable slots: 8 standard (clicks, scroll, DPI, side back/forward) read
-from binding group 0, plus the 6 side buttons from group 1.
-
-## Credits
-
-* [G-Helper](https://github.com/seerge/g-helper) by **seerge and contributors**:
-  the HID stack, the AsusMouse protocol and the Spatha X support SpathaRE is
-  built on, and a lot of the ideas.
-* Original Spatha protocol: reverse engineered from Armoury Crate's
-  `IfSpatha.dll`, `SPATHA HID Library`, `SPATHA SYNC Dll` and
-  `AacMouseExternHal`, verified on a real mouse. Write-up:
-  [PROTOCOL.md](PROTOCOL.md).
-* Button-map artwork: line renders of the ROG Spatha.
+Requires the .NET 8 SDK. The output is a framework-dependent single file; add
+`-p:SelfContained=true` if you'd rather not install the runtime. Nothing native
+is compiled, so either architecture can be built from either machine.
 
 ## Tests
 
@@ -207,10 +141,33 @@ cd SpathaRE.Tests
 dotnet run
 ```
 
-Runs the original-Spatha protocol and device code against a simulated mouse
-(busy replies, stale replies, dropped writes, profile switching, battery).
-Pure .NET, so it also runs on Linux and macOS.
+Runs the original Spatha's protocol and device code against a simulated mouse:
+busy and stale replies, dropped writes, profile switching, battery, patchy
+wireless, export / import. Pure .NET, so it also runs on Linux and macOS.
+
+## Repository
+
+| Path | What |
+|---|---|
+| `SpathaRE/` | the app (WPF, .NET 8) |
+| `SpathaRE/Core/Spatha/` | original Spatha: memory layout, protocol, HID transport, device |
+| `SpathaRE/Core/Devices/` | the model both mice share, button names, export format, Spatha X adapter |
+| `SpathaRE/Core/Mouse/`, `Core/Usb/` | Spatha X support, vendored from G-Helper |
+| `SpathaRE/UI/` | settings window, button map, tray popup |
+| `SpathaRE.Tests/` | tests against a simulated Spatha |
+| `PROTOCOL.md` | the original Spatha's USB protocol |
+| `tools/python/` | `spatha.py`, the command-line tool used to decode and test the protocol |
+
+## Credits
+
+* [G-Helper](https://github.com/seerge/g-helper) by **seerge and contributors**:
+  the Spatha X support, the HID code underneath it, and a lot of the ideas.
+  Thank you.
+* Original Spatha protocol: reverse engineered from Armoury Crate's
+  `IfSpatha.dll`, `SPATHA HID Library`, `SPATHA SYNC Dll` and
+  `AacMouseExternHal`, verified on a real mouse.
+* Button-map artwork: line renders of the ROG Spatha.
 
 ## Licence
 
-GPL-3.0, inherited from G-Helper. Original work © seerge and contributors.
+GPL-3.0, inherited from G-Helper. Original G-Helper code © seerge and contributors.

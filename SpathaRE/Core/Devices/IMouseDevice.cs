@@ -44,6 +44,8 @@ public interface IMouseDevice : IDisposable
     void SetProfile(int profile);
     /// <summary>Cheap check for a profile switch made on the mouse itself.</summary>
     bool PollProfileChanged();
+    /// <summary>While not ready: cheap check whether the mouse answers again. True when it is ready now.</summary>
+    bool PollWake();
 
     // ---- buttons ----
     IReadOnlyList<ButtonSlot> ButtonSlots { get; }
@@ -66,6 +68,12 @@ public interface IMouseDevice : IDisposable
     // ---- lighting ----
     IReadOnlyList<LightZone> LightZones { get; }
     void SetLighting(int zone, LightState state);
+
+    // ---- export / import (buttons and DPI only) ----
+    /// <summary>Reads one onboard profile. May switch the mouse to that profile; the caller switches back.</summary>
+    PortableProfile ExportProfile(int profile);
+    /// <summary>Writes buttons and DPI into one onboard profile. May switch the mouse to that profile.</summary>
+    void ImportProfile(int profile, PortableProfile data, ImportReport report);
 }
 
 public sealed record ButtonSlot(int Slot, string Name);

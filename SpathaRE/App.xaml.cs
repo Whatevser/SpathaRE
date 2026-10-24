@@ -73,31 +73,58 @@ public partial class App : Application
 
     // ---- hotkeys ---------------------------------------------------------
 
+    public static App Instance => (App)Current;
+
+    /// <summary>Every app hotkey: config key, what it does, default gesture.</summary>
+    public static readonly (string Key, string Label, string Default)[] HotkeyDefs =
+    {
+        ("hotkey_profile_1", "Profile 1", "Ctrl+Alt+1"),
+        ("hotkey_profile_2", "Profile 2", "Ctrl+Alt+2"),
+        ("hotkey_profile_3", "Profile 3", "Ctrl+Alt+3"),
+        ("hotkey_profile_4", "Profile 4", "Ctrl+Alt+4"),
+        ("hotkey_profile_5", "Profile 5", "Ctrl+Alt+5"),
+        ("hotkey_profile_6", "Profile 6 (original Spatha's Default)", "Ctrl+Alt+6"),
+        ("hotkey_profile_next", "Next profile", "Ctrl+Alt+OemPlus"),
+        ("hotkey_profile_prev", "Previous profile", "Ctrl+Alt+OemMinus"),
+        ("hotkey_popup", "Show the tray popup", "Ctrl+Alt+M"),
+    };
+
+    public static string HotkeyGesture(string key) =>
+        AppConfig.GetString(key, HotkeyDefs.First(h => h.Key == key).Default)!;
+
     /// <summary>
-    /// Reads gestures from config.json. Missing keys fall back to the defaults
-    /// below; set a key to "" to disable it.
+    /// Registers every hotkey from config.json (editable in Settings → Hotkeys).
+    /// Missing keys fall back to the defaults above; "" disables one. Returns, per
+    /// config key, whether Windows accepted it (false = taken by another app).
     /// </summary>
-    public void RegisterHotkeys()
+    public Dictionary<string, bool> RegisterHotkeys()
     {
         _hotkeys.UnregisterGroup("user");
+        var result = new Dictionary<string, bool>();
 
-        for (int i = 1; i <= 5; i++)
+        foreach (var (key, _, _) in HotkeyDefs)
         {
-            int profile = i - 1;
-            string gesture = AppConfig.GetString($"hotkey_profile_{i}", $"Ctrl+Alt+{i}")!;
-            if (gesture.Length > 0)
-                _hotkeys.Register(gesture, () => _ = MouseManager.SetProfileAsync(profile));
+            string gesture = HotkeyGesture(key);
+            if (gesture.Length == 0) continue;
+            Action action = key switch
+            {
+                "hotkey_profile_next" => () => _ = MouseManager.CycleProfileAsync(1),
+                "hotkey_profile_prev" => () => _ = MouseManager.CycleProfileAsync(-1),
+                "hotkey_popup" => TogglePopup,
+                _ => SetProfileAction(int.Parse(key["hotkey_profile_".Length..]) - 1),
+            };
+            result[key] = _hotkeys.Register(gesture, action);
         }
-
-        string next = AppConfig.GetString("hotkey_profile_next", "Ctrl+Alt+OemPlus")!;
-        if (next.Length > 0) _hotkeys.Register(next, () => _ = MouseManager.CycleProfileAsync(1));
-
-        string prev = AppConfig.GetString("hotkey_profile_prev", "Ctrl+Alt+OemMinus")!;
-        if (prev.Length > 0) _hotkeys.Register(prev, () => _ = MouseManager.CycleProfileAsync(-1));
-
-        string popup = AppConfig.GetString("hotkey_popup", "Ctrl+Alt+M")!;
-        if (popup.Length > 0) _hotkeys.Register(popup, TogglePopup);
+        LastHotkeyResults = result;
+        return result;
     }
+
+    public Dictionary<string, bool> LastHotkeyResults { get; private set; } = new();
+
+    /// <summary>Releases the profile hotkeys while one is being re-recorded in Settings.</summary>
+    public void SuspendHotkeys() => _hotkeys.UnregisterGroup("user");
+
+    private static Action SetProfileAction(int profile) => () => _ = MouseManager.SetProfileAsync(profile);
 
     // ---- tray ------------------------------------------------------------
 

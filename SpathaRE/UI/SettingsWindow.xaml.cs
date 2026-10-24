@@ -11,6 +11,7 @@ using SpathaRE.Core.Devices;
 using SpathaRE.Core.Mouse;
 using SpathaRE.Input;
 using DColor = System.Drawing.Color;
+using Keys = System.Windows.Forms.Keys;
 using MColor = System.Windows.Media.Color;
 
 namespace SpathaRE.UI;
@@ -54,8 +55,20 @@ public partial class SettingsWindow : Window
         ShortcutClear.Click += (_, _) => { _scMods = 0; _scKeys.Clear(); ShortcutBox.Text = "Press the keys…"; ShortcutBox.Focus(); };
         ShortcutAssign.Click += async (_, _) => await AssignShortcut();
 
-        ComboCommand.LostFocus += (_, _) => SaveComboCommand();
-        ComboCommand.KeyDown += (_, e) => { if (e.Key == Key.Enter) SaveComboCommand(); };
+        ComboRecorder.PreviewKeyDown += RecordComboKey;
+        ComboRecorder.GotKeyboardFocus += (_, _) =>
+        {
+            if (_editingCombo == 0) return;
+            _comboKeys.Clear();
+            _comboTyping = false;
+            ComboRecorder.IsReadOnly = true;
+            ComboRecorder.Text = "Press the keys…";
+        };
+        ComboSave.Click += (_, _) => SaveCombo();
+        ComboDefault.Click += (_, _) => ResetCombo();
+
+        ExportButton.Click += (_, _) => ShowExportMenu();
+        ImportButton.Click += async (_, _) => await Import();
 
         RescanButton.Click += (_, _) => { SetStatus("Searching for mice…"); Task.Run(MouseManager.DetectAll); };
         ResyncButton.Click += async (_, _) => { await MouseManager.ResyncAsync(_dev); Dispatcher.Invoke(RefreshAll); };
@@ -80,6 +93,7 @@ public partial class SettingsWindow : Window
             MouseManager.BusyChanged -= OnBusy;
         };
 
+        BuildHotkeys();
         RefreshAll();
     }
 
@@ -142,6 +156,26 @@ public partial class SettingsWindow : Window
         PerformancePage.Visibility = page == "Performance" ? Visibility.Visible : Visibility.Collapsed;
         LightingPage.Visibility = page == "Lighting" ? Visibility.Visible : Visibility.Collapsed;
         PowerPage.Visibility = page == "Power" ? Visibility.Visible : Visibility.Collapsed;
+        HotkeysPage.Visibility = page == "Hotkeys" ? Visibility.Visible : Visibility.Collapsed;
+        UpdateEmptyState();
+    }
+
+    /// <summary>The "no mouse" placeholder covers the mouse pages, never the app's own Hotkeys page.</summary>
+    private void UpdateEmptyState()
+    {
+        bool none = _dev is null || !_dev.IsReady;
+        EmptyState.Visibility = none && _page != "Hotkeys" ? Visibility.Visible : Visibility.Collapsed;
+        if (_dev is not null && !_dev.IsReady)
+        {
+            EmptyTitle.Text = $"{_dev.Name} is asleep or out of range";
+            EmptyText.Text = "Move or click the mouse to wake it. It shows up again here within a few seconds.";
+        }
+        else
+        {
+            EmptyTitle.Text = "No supported mouse found";
+            EmptyText.Text = "Plug in a ROG Spatha or Spatha X (cable or dock) and move it to wake it up. Close Armoury Crate so the two programs don't talk to the mouse at the same time.";
+        }
+        ExportButton.IsEnabled = ImportButton.IsEnabled = !none;
     }
 
     public void RefreshAll()
@@ -152,14 +186,16 @@ public partial class SettingsWindow : Window
         {
             RefreshDevices();
             bool none = _dev is null || !_dev.IsReady;
-            EmptyState.Visibility = none ? Visibility.Visible : Visibility.Collapsed;
+            UpdateEmptyState();
             RefreshHeader();
             if (none) { Banner.Visibility = Visibility.Collapsed; return; }
 
             bool ro = _dev!.IsProfileReadOnly(_dev.Profile);
             Banner.Visibility = ro ? Visibility.Visible : Visibility.Collapsed;
             BannerText.Text = $"\"{_dev.ProfileName(_dev.Profile)}\" is the mouse's factory profile. Like Armoury Crate, SpathaRE keeps it read-only. Pick profile 1-5 to edit.";
-            Pages.IsEnabled = !ro;
+            foreach (var page in new UIElement[] { ButtonsPage, PerformancePage, LightingPage, PowerPage })
+                page.IsEnabled = !ro;
+            Map.Opacity = ro ? 0.55 : 1;
 
             RefreshButtons();
             BuildPerformance();
@@ -224,17 +260,23 @@ public partial class SettingsWindow : Window
         for (int i = 0; i < d.ProfileCount; i++)
         {
             int p = i;
+            string onMouse = Buttons.ProfileSwitchText(i);
             var rb = new RadioButton
             {
                 Style = St("Pill"),
                 GroupName = "profiles",
                 MinWidth = 38,
-                Content = d.IsProfileReadOnly(i) ? "" : (i + 1).ToString(),
+                Content = d.IsProfileReadOnly(i) ? "\uE72E" : (i + 1).ToString(),
                 FontFamily = d.IsProfileReadOnly(i) ? (FontFamily)Application.Current.Resources["IconFont"] : FontFamily,
-                ToolTip = d.ProfileName(i) + (d.IsProfileReadOnly(i) ? " (read-only)" : ""),
+                ToolTip = d.ProfileName(i) + (d.IsProfileReadOnly(i) ? " (read-only)" : "")
+                          + (onMouse.Length > 0 ? $"\nOn the mouse: hold {onMouse}" : ""),
                 IsChecked = d.Profile == i,
             };
             rb.Checked += async (_, _) => { if (!_loading) await MouseManager.SetProfileAsync(_dev, p); };
+            // Show which buttons switch to this profile on the mouse itself.
+            var slots = Buttons.ProfileSwitchSlots(d.Model, i);
+            rb.MouseEnter += (_, _) => { if (_page == "Buttons" && _mapDevice == _dev) Map.Highlight(slots); };
+            rb.MouseLeave += (_, _) => Map.Highlight(Array.Empty<int>());
             ProfileStrip.Children.Add(rb);
         }
     }
@@ -283,7 +325,7 @@ public partial class SettingsWindow : Window
     {
         CategoryBar.Children.Clear();
         var names = d.ActionCatalog.Select(g => g.Name).ToList();
-        if (d.SupportsShortcuts) names.Add("Shortcut");
+        if (d.SupportsShortcuts) names.Add(CustomCombo);
         _category = names.FirstOrDefault() ?? "";
         foreach (var name in names)
         {
@@ -305,20 +347,20 @@ public partial class SettingsWindow : Window
 
         // Jump to the category that holds the current action.
         var group = current is null ? null : d.ActionCatalog.FirstOrDefault(g => g.Actions.Contains(current));
-        string wanted = group?.Name ?? (d.SupportsShortcuts && current is not null ? "Shortcut" : _category);
+        string wanted = group?.Name ?? (d.SupportsShortcuts && current is not null ? CustomCombo : _category);
         foreach (var rb in CategoryBar.Children.OfType<RadioButton>())
             if ((string)rb.Content == wanted && rb.IsChecked != true) rb.IsChecked = true;
         _category = wanted;
 
         FillActionList();
-        ShowComboEditor(current);
     }
 
     private void FillActionList()
     {
         var d = _dev;
         if (d is null) return;
-        bool shortcut = _category == "Shortcut";
+        ShowComboEditor();
+        bool shortcut = _category == CustomCombo;
         ShortcutPanel.Visibility = shortcut ? Visibility.Visible : Visibility.Collapsed;
         ActionList.Visibility = shortcut ? Visibility.Collapsed : Visibility.Visible;
         SearchBox.Visibility = ActionList.Visibility;
@@ -355,7 +397,7 @@ public partial class SettingsWindow : Window
         {
             Map.SetLabels(s => _dev?.GetBinding(s)?.Label);
             SlotCurrent.Text = _dev?.GetBinding(slot)?.Label ?? action.Label;
-            ShowComboEditor(_dev?.GetBinding(slot));
+            ShowComboEditor();
         });
     }
 
@@ -386,37 +428,347 @@ public partial class SettingsWindow : Window
         });
     }
 
-    // ---- Spatha X combo replay ----
+    // ---- Spatha X combos (carrier key + replay) ----
+
+    private const string CustomCombo = "Custom combo";
 
     private ushort _editingCombo;
+    private readonly List<Keys> _comboKeys = new();
 
-    private void ShowComboEditor(ButtonAction? action)
+    private static readonly Keys[] ModifierOrder =
+        { Keys.LControlKey, Keys.RControlKey, Keys.LShiftKey, Keys.RShiftKey, Keys.LMenu, Keys.RMenu, Keys.LWin, Keys.RWin };
+
+    private static List<Keys> Ordered(IEnumerable<Keys> keys) =>
+        keys.OrderBy(k => Array.IndexOf(ModifierOrder, k) is int i && i >= 0 ? i : 100).ToList();
+
+    /// <summary>The editor shows for the Spatha X when the button has a combo or the Combos tab is open.</summary>
+    private void ShowComboEditor()
     {
-        if (action?.Payload is not ushort code || !AsusMouse.CombosByCode.TryGetValue(code, out var combo))
+        var d = _dev;
+        var current = d is not null && Map.SelectedSlot >= 0 ? d.GetBinding(Map.SelectedSlot) : null;
+        bool isCombo = current?.Payload is ushort code && AsusMouse.CombosByCode.ContainsKey(code);
+        bool comboTab = d is AsusMouseDevice && _category == "Combos";
+        if (!isCombo && !comboTab)
         {
             ComboPanel.Visibility = Visibility.Collapsed;
             _editingCombo = 0;
             return;
         }
-        _editingCombo = code;
         ComboPanel.Visibility = Visibility.Visible;
-        ComboCommand.Text = combo.ResolveCommand();
-        ComboStatus.Text = $"The mouse sends F{13 + (code - 0x0068)}; SpathaRE replays the keys above.";
-    }
-
-    private void SaveComboCommand()
-    {
-        if (_editingCombo == 0 || !AsusMouse.CombosByCode.TryGetValue(_editingCombo, out var combo)) return;
-        var parsed = ComboDispatcher.ParseCommand(ComboCommand.Text.Trim());
-        if (parsed.Count == 0)
+        ComboStatus.Text = "";
+        if (!isCombo)
         {
-            ComboStatus.Text = "Couldn't parse that, reverted.";
-            ComboCommand.Text = combo.ResolveCommand();
+            _editingCombo = 0;
+            ComboTitle.Text = "EDIT COMBO";
+            ComboHelp.Text = "The Spatha X can't send key combinations by itself. Pick one of the 12 combos above for this button; you can then change which keys it types right here.";
+            ComboRecorder.Text = "";
+            ComboRecorder.IsEnabled = ComboSave.IsEnabled = ComboDefault.IsEnabled = false;
             return;
         }
-        AppConfig.Set(combo.ConfigKey, ComboCommand.Text.Trim());
-        ComboStatus.Text = $"Saved. Replays {string.Join(" + ", parsed)}.";
+
+        _editingCombo = (ushort)current!.Payload;
+        var combo = AsusMouse.CombosByCode[_editingCombo];
+        string carrier = AsusMouseDevice.CarrierKey(_editingCombo);
+        ComboTitle.Text = $"EDIT COMBO {carrier}";
+        ComboHelp.Text = $"This button makes the mouse send {carrier}, and SpathaRE types the keys below. " +
+                         "1. Click the box.  2. Press the new keys together.  3. Save keys. " +
+                         $"Every button set to {carrier}, in any profile, changes with it. " +
+                         "Keys Windows keeps for itself (Alt+Tab, Win+L) can't be pressed here: click the box, press Backspace and type them instead, e.g. Win+Shift+S.";
+        ComboRecorder.IsEnabled = ComboSave.IsEnabled = ComboDefault.IsEnabled = true;
+        _comboKeys.Clear();
+        _comboTyping = false;
+        ComboRecorder.IsReadOnly = true;
+        ComboRecorder.Text = ComboDispatcher.Describe(combo.ResolveCommand());
+        ComboStatus.Text = AppConfig.GetString(combo.ConfigKey) is null ? "Default keys." : "Custom keys.";
     }
+
+    /// <summary>True after Backspace in an empty recorder: the box takes typed text like "Win+Shift+S".</summary>
+    private bool _comboTyping;
+
+    private void RecordComboKey(object sender, KeyEventArgs e)
+    {
+        if (_editingCombo == 0 || _comboTyping)
+        {
+            if (_comboTyping && e.Key == Key.Enter) { SaveCombo(); e.Handled = true; }
+            return;
+        }
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.None) return;
+        if (key == Key.Back && _comboKeys.Count == 0)
+        {
+            _comboTyping = true;
+            ComboRecorder.IsReadOnly = false;
+            ComboRecorder.Text = "";
+            ComboStatus.Text = "Type the keys joined with +, then Save keys (or Enter).";
+            return;
+        }
+        var k = (Keys)KeyInterop.VirtualKeyFromKey(key);
+        if (!_comboKeys.Contains(k) && _comboKeys.Count < 6) _comboKeys.Add(k);
+        ComboRecorder.Text = ComboDispatcher.Describe(Ordered(_comboKeys));
+    }
+
+    private void SaveCombo()
+    {
+        if (_editingCombo == 0 || !AsusMouse.CombosByCode.TryGetValue(_editingCombo, out var combo)) return;
+        var keys = _comboTyping ? ComboDispatcher.ParseCommand(ComboRecorder.Text.Trim()) : Ordered(_comboKeys);
+        if (keys.Count == 0)
+        {
+            ComboStatus.Text = _comboTyping
+                ? "Couldn't read that. Use names like Ctrl, Shift, Alt, Win, A, F5, Tab, joined with +."
+                : "No keys yet: click the box and press them.";
+            return;
+        }
+        AppConfig.Set(combo.ConfigKey, ComboDispatcher.ToCommand(keys));
+        string saved = $"Saved. {AsusMouseDevice.CarrierKey(_editingCombo)} now types {ComboDispatcher.Describe(keys)}.";
+        AfterComboChange();
+        ComboStatus.Text = saved;
+    }
+
+    private void ResetCombo()
+    {
+        if (_editingCombo == 0 || !AsusMouse.CombosByCode.TryGetValue(_editingCombo, out var combo)) return;
+        AppConfig.Remove(combo.ConfigKey);
+        string done = $"Back to the default, {ComboDispatcher.Describe(combo.DefaultCommand)}.";
+        AfterComboChange();
+        ComboStatus.Text = done;
+    }
+
+    /// <summary>Combo labels show their keys, so everything that lists them is refreshed.</summary>
+    private void AfterComboChange()
+    {
+        Map.SetLabels(s => _dev?.GetBinding(s)?.Label);
+        if (Map.SelectedSlot >= 0) SlotCurrent.Text = _dev?.GetBinding(Map.SelectedSlot)?.Label ?? "—";
+        FillActionList();
+    }
+
+    // =====================================================================
+    // export / import
+    // =====================================================================
+
+    private void ShowExportMenu()
+    {
+        var d = _dev;
+        if (d is null || !d.IsReady) return;
+        var menu = new ContextMenu { PlacementTarget = ExportButton, Placement = PlacementMode.Bottom };
+        var one = new MenuItem { Header = $"This profile ({d.ProfileName(d.Profile)})…" };
+        one.Click += async (_, _) => await Export(new[] { d.Profile });
+        var all = new MenuItem { Header = $"All {d.ProfileCount} profiles…" };
+        all.Click += async (_, _) => await Export(Enumerable.Range(0, d.ProfileCount).ToList());
+        menu.Items.Add(one);
+        menu.Items.Add(all);
+        menu.IsOpen = true;
+    }
+
+    private async Task Export(IReadOnlyList<int> profiles)
+    {
+        var d = _dev;
+        if (d is null) return;
+        string what = profiles.Count == 1 ? d.ProfileName(profiles[0]) : "all profiles";
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export buttons and DPI",
+            Filter = "SpathaRE profiles (*.json)|*.json",
+            FileName = $"{d.Name} - {what}.json",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        SetStatus(profiles.Count > 1 ? "Reading every profile from the mouse…" : "Reading the profile…");
+        var file = await MouseManager.ExportAsync(d, profiles);
+        if (file is null) { SetStatus("Export failed, see the log", Res("Danger")); return; }
+        try
+        {
+            System.IO.File.WriteAllText(dlg.FileName, file.ToJson());
+            SetStatus($"Exported {what} to {System.IO.Path.GetFileName(dlg.FileName)}", Res("Ok"));
+        }
+        catch (Exception e) { SetStatus("Couldn't write the file: " + e.Message, Res("Danger")); }
+        RefreshAll();
+    }
+
+    private async Task Import()
+    {
+        var d = _dev;
+        if (d is null || !d.IsReady) return;
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Import buttons and DPI",
+            Filter = "SpathaRE profiles (*.json)|*.json|All files|*.*",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+
+        ProfileFile file;
+        try { file = ProfileFile.Parse(System.IO.File.ReadAllText(dlg.FileName)); }
+        catch (Exception e)
+        {
+            MessageBox.Show(this, "That file can't be imported: " + e.Message, "SpathaRE", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string from = file.Model == nameof(DeviceModel.SpathaX) ? "Spatha X"
+                    : file.Model == nameof(DeviceModel.Spatha) ? "original Spatha" : file.Model;
+        bool cross = file.Model != d.Model.ToString();
+        string note = "Only button functions and DPI are imported; lighting and the other settings stay as they are." +
+                      (cross ? $"\n\nThe file comes from a {from}. Buttons are matched by position; anything this mouse can't do is left unchanged and listed afterwards." : "");
+
+        List<(int, PortableProfile)> items;
+        string question;
+        if (file.Profiles.Count == 1)
+        {
+            if (d.IsProfileReadOnly(d.Profile))
+            {
+                MessageBox.Show(this, "The active profile is read-only. Switch to profile 1-5 first.", "SpathaRE", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var p = file.Profiles[0];
+            items = new() { (d.Profile, p) };
+            question = $"Import \"{p.Name}\" into {d.ProfileName(d.Profile)}?";
+        }
+        else
+        {
+            items = file.Profiles.Select(p => (p.Index, p)).ToList();
+            question = $"Import {file.Profiles.Count} profiles into the same profile numbers on this mouse? " +
+                       "Profiles this mouse doesn't have, and read-only ones, are skipped.";
+        }
+        if (MessageBox.Show(this, question + "\n\n" + note, "SpathaRE", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
+            return;
+
+        SetStatus("Writing to the mouse…");
+        var report = await MouseManager.ImportAsync(d, items);
+        RefreshAll();
+        string summary = $"Imported into {report.Written} profile(s).";
+        if (report.Notes.Count > 0) summary += "\n\n• " + string.Join("\n• ", report.Notes);
+        SetStatus($"Imported into {report.Written} profile(s)", Res(report.Written > 0 ? "Ok" : "Warn"));
+        MessageBox.Show(this, summary, "SpathaRE", MessageBoxButton.OK,
+            report.Notes.Count > 0 ? MessageBoxImage.Information : MessageBoxImage.None);
+    }
+
+    // =====================================================================
+    // hotkeys (app settings, not stored on a mouse)
+    // =====================================================================
+
+    private readonly Dictionary<string, TextBlock> _hotkeyStatus = new();
+
+    private void BuildHotkeys()
+    {
+        HotkeysPanel.Children.Clear();
+        _hotkeyStatus.Clear();
+
+        var body = new StackPanel();
+        body.Children.Add(CardTitle("Profile hotkeys",
+            "Global keyboard shortcuts that switch the selected mouse's onboard profile. Click a box and press the new keys; Clear turns one off."));
+        foreach (var (key, label, def) in App.HotkeyDefs)
+            body.Children.Add(HotkeyRow(key, label, def));
+        HotkeysPanel.Children.Add(new Border { Style = St("Card"), Child = body });
+
+        var onMouse = new StackPanel();
+        onMouse.Children.Add(CardTitle("On the mouse",
+            "Both Spathas also switch profile by themselves: hold the DPI button and press a side button. Hover a profile number on the Buttons page to see those buttons in red."));
+        for (int i = 0; i < 6; i++)
+        {
+            var g = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.Children.Add(new TextBlock { Text = i == 5 ? "Profile 6 (original Spatha)" : $"Profile {i + 1}", FontWeight = FontWeights.SemiBold });
+            var t = new TextBlock { Text = Buttons.ProfileSwitchText(i), Foreground = Res("FgDim") };
+            Grid.SetColumn(t, 1);
+            g.Children.Add(t);
+            onMouse.Children.Add(g);
+        }
+        HotkeysPanel.Children.Add(new Border { Style = St("Card"), Child = onMouse });
+
+        var general = new StackPanel();
+        general.Children.Add(CardTitle("General", null));
+        general.Children.Add(ConfigToggle("notify_profile_change", true, "Notify on profile change",
+            "A tray notification when the profile is switched on the mouse."));
+        general.Children.Add(ConfigToggle("usb_packet_logger", false, "Log every USB packet",
+            "Spatha X only, for troubleshooting. Makes the log grow quickly."));
+        var folder = new Button { Content = "Open log and config folder", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        folder.Click += (_, _) => System.Diagnostics.Process.Start("explorer.exe", Logger.AppPath);
+        general.Children.Add(folder);
+        HotkeysPanel.Children.Add(new Border { Style = St("Card"), Child = general });
+
+        UpdateHotkeyStatus(null);
+    }
+
+    private UIElement ConfigToggle(string key, bool def, string label, string hint)
+    {
+        var sw = new CheckBox { Style = St("Switch"), IsChecked = AppConfig.GetBool(key, def), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+        sw.Click += (_, _) => AppConfig.Set(key, sw.IsChecked == true);
+        return LabeledRow(label, hint, sw);
+    }
+
+    private UIElement LabeledRow(string label, string? hint, FrameworkElement control)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 10, 0, 6) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var l = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
+        l.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
+        if (hint is not null) l.Children.Add(new TextBlock { Text = hint, Style = St("Muted"), FontSize = 11.5, Margin = new Thickness(0, 2, 0, 0) });
+        grid.Children.Add(l);
+        Grid.SetColumn(control, 1);
+        grid.Children.Add(control);
+        return grid;
+    }
+
+    private UIElement HotkeyRow(string key, string label, string def)
+    {
+        var box = new TextBox { IsReadOnly = true, Width = 220, Cursor = Cursors.Hand, FontFamily = new FontFamily("Consolas"), FontSize = 13 };
+        string Shown() => App.HotkeyGesture(key) is { Length: > 0 } g ? Pretty(g) : "Off";
+        box.Text = Shown();
+        // While recording, the app's own hotkeys are released so pressing one reaches the box.
+        box.GotKeyboardFocus += (_, _) => { App.Instance.SuspendHotkeys(); box.Text = "Press the keys…"; };
+        box.LostKeyboardFocus += (_, _) => { box.Text = Shown(); UpdateHotkeyStatus(App.Instance.RegisterHotkeys()); };
+        box.PreviewKeyDown += (_, e) =>
+        {
+            e.Handled = true;
+            var k = e.Key == Key.System ? e.SystemKey : e.Key;
+            string mods = ModifierText(Keyboard.Modifiers);
+            if (k is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
+            {
+                box.Text = mods + "…";
+                return;
+            }
+            if (k == Key.Escape && mods.Length == 0) { Keyboard.ClearFocus(); return; }
+            string gesture = mods + (k >= Key.D0 && k <= Key.D9 ? ((char)('0' + (k - Key.D0))).ToString() : k.ToString());
+            AppConfig.Set(key, gesture);
+            Keyboard.ClearFocus();
+        };
+
+        var clear = new Button { Content = "Clear", Style = St("GhostButton"), Margin = new Thickness(8, 0, 0, 0) };
+        clear.Click += (_, _) => { AppConfig.Set(key, ""); box.Text = Shown(); UpdateHotkeyStatus(App.Instance.RegisterHotkeys()); };
+        var reset = new Button { Content = "Default", Style = St("GhostButton"), Margin = new Thickness(2, 0, 0, 0), ToolTip = Pretty(def) };
+        reset.Click += (_, _) => { AppConfig.Remove(key); box.Text = Shown(); UpdateHotkeyStatus(App.Instance.RegisterHotkeys()); };
+        var status = new TextBlock { FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+        _hotkeyStatus[key] = status;
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(box);
+        row.Children.Add(clear);
+        row.Children.Add(reset);
+        row.Children.Add(status);
+        return LabeledRow(label, null, row);
+    }
+
+    private void UpdateHotkeyStatus(Dictionary<string, bool>? results)
+    {
+        results ??= App.Instance.LastHotkeyResults;
+        foreach (var (key, text) in _hotkeyStatus)
+        {
+            bool off = App.HotkeyGesture(key).Length == 0;
+            bool ok = results.TryGetValue(key, out bool r) && r;
+            text.Text = off ? "" : ok ? "active" : "taken by another app";
+            text.Foreground = ok ? Res("Ok") : Res("Danger");
+        }
+    }
+
+    private static string ModifierText(ModifierKeys m) =>
+        ((m & ModifierKeys.Control) != 0 ? "Ctrl+" : "") + ((m & ModifierKeys.Alt) != 0 ? "Alt+" : "") +
+        ((m & ModifierKeys.Shift) != 0 ? "Shift+" : "") + ((m & ModifierKeys.Windows) != 0 ? "Win+" : "");
+
+    /// <summary>"Ctrl+Alt+OemPlus" -> "Ctrl+Alt+=" for display.</summary>
+    private static string Pretty(string gesture) => gesture
+        .Replace("OemPlus", "=").Replace("OemMinus", "-").Replace("OemTilde", "`").Replace("OemComma", ",")
+        .Replace("OemPeriod", ".").Replace("NumPad", "Num ");
 
     // =====================================================================
     // performance

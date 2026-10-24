@@ -50,7 +50,8 @@ Check(SpathaCodec.Describe(SpathaCodec.Key(0x03, 0x29)) == "Ctrl+Shift+Esc", "de
 Check(SpathaCodec.Describe(SpathaCodec.Key(0, 0x2A)) == "Backspace", "describe Backspace");
 Check(SpathaCodec.Describe(SpathaCodec.Media(0xE9)) == "Volume up", "describe media");
 Check(SpathaCodec.Describe(SpathaCodec.DpiButton) == "DPI switch", "describe DPI");
-Check(SpathaCodec.Describe(SpathaCodec.WheelDown) == "Scroll down", "describe wheel down");
+Check(SpathaCodec.Describe(SpathaCodec.WheelDown) == "Wheel down", "describe wheel down");
+Check(SpathaCodec.Describe(SpathaCodec.Mouse(4)) == "Wheel click", "describe wheel click");
 Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
 
 // ---- device ----
@@ -128,10 +129,67 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     var d = new SpathaDevice(p, wired: false);
     d.Synchronize();
     fake.Asleep = true;
-    Check(!d.PollProfileChanged() && !d.IsReady, "mouse falling asleep marks the device not ready");
+    Check(!d.PollProfileChanged() && d.IsReady, "one missed reply (patchy wireless) doesn't mark the mouse asleep");
+    SpathaDevice.AsleepAfter = TimeSpan.Zero;
+    Check(!d.PollProfileChanged() && !d.IsReady, "silent for longer than AsleepAfter: shown as asleep");
+    Check(!d.PollWake() && !d.IsReady, "wake check while still asleep");
     fake.Asleep = false;
+    int reads = fake.Sent.Count;
+    Check(d.PollWake() && d.IsReady, "wake check brings it back");
+    Check(fake.Sent.Count - reads <= 3, "waking with the same profile costs a probe + battery read, not a full re-read");
+    SpathaDevice.AsleepAfter = TimeSpan.FromSeconds(60);
+}
+
+// ---- names shared by both models ----
+Check(Buttons.SlotName(DeviceModel.Spatha, 10) == "Side button 1" && Buttons.SlotName(DeviceModel.SpathaX, 8) == "Side button 1",
+      "side button 1 has the same name on both models");
+Check(Enumerable.Range(0, 14).All(i => SpathaCodec.SlotNames[i] == Buttons.SlotName(DeviceModel.Spatha, i)),
+      "codec slot names match the shared table");
+Check(Buttons.ProfileSwitchSlots(DeviceModel.Spatha, 1).SequenceEqual(new[] { 5, 6 }), "profile 2 = DPI + side 3 (Spatha slots 5, 6)");
+Check(Buttons.ProfileSwitchSlots(DeviceModel.SpathaX, 2).SequenceEqual(new[] { 5, 13 }), "profile 3 = DPI + side 6 (X slots 5, 13)");
+Check(Buttons.ProfileSwitchSlots(DeviceModel.Spatha, 5).SequenceEqual(new[] { 5, 8 }), "profile 6 = DPI + side 2");
+
+// ---- export / import ----
+{
+    var p = NewMouse(out var fake);
+    var d = new SpathaDevice(p, wired: true);
     d.Synchronize();
-    Check(d.IsReady, "device comes back after waking");
+    var exported = d.ExportProfile(2);
+    Check(exported.Dpi.SequenceEqual(new[] { 1650, 450 }) && exported.Buttons.Count == 14, "export another profile without switching");
+    Check(exported.Buttons["side1"].Type == "key" && exported.Buttons["side1"].Keys![0] == 0x24, "side 1 exports as key 7");
+    Check(exported.Buttons["wheel_click"].Type == "mouse" && exported.Buttons["wheel_click"].Button == "middle", "wheel click exports as middle");
+
+    var file = new ProfileFile { Model = "SpathaX", Profiles = { new PortableProfile
+    {
+        Name = "From X", Index = 0, Dpi = { 800, 1600, 3200, 6400 },
+        Buttons =
+        {
+            ["side1"] = PortableAction.Key(0x01, new byte[] { 0x06 }),            // Ctrl+C
+            ["side2"] = new PortableAction { Type = "side", Button = "side4" },   // X-only
+            ["back"] = PortableAction.OfMedia("volume_up"),
+            ["dpi"] = PortableAction.Simple("dpi"),
+        },
+    } } };
+    var parsed = ProfileFile.Parse(file.ToJson());
+    var report = new ImportReport();
+    d.ImportProfile(3, parsed.Profiles[0], report);
+    int b = 0x100 * 4;
+    Check(fake.Mem[b + 4] == 15 && fake.Mem[b + 6] == 31, "import sets the first two DPI stages");
+    Check(fake.Mem.Skip(b + 0x83 + 5 * 10).Take(5).SequenceEqual(new byte[] { 2, 1, 6, 0, 0 }), "Ctrl+C from the X lands as a native shortcut on side 1");
+    Check(fake.Mem.Skip(b + 0x83 + 5 * 3).Take(5).SequenceEqual(new byte[] { 3, 0xE9, 0, 0, 0 }), "media key mapped");
+    Check(fake.Mem.Skip(b + 0x83 + 5 * 8).Take(5).SequenceEqual(SpathaCodec.FactoryProfile.Skip(0x83 + 5 * 8).Take(5)), "X-only function left unchanged");
+    Check(report.Notes.Any(n => n.Contains("Side button 2")) && report.Notes.Any(n => n.Contains("2 DPI stages")), "report lists what was skipped");
+    Check(fake.Sent.Last()[1] == 0xC4 && fake.Sent.Last()[2] == 0x00, "import commits");
+
+    var ro = new ImportReport();
+    d.ImportProfile(5, parsed.Profiles[0], ro);
+    Check(ro.Written == 0 && fake.Mem[0x604] == SpathaCodec.FactoryProfile[4], "import never writes the Default profile");
+
+    var round = new ImportReport();
+    d.ImportProfile(0, d.ExportProfile(3), round);
+    var a = d.ExportProfile(0); var c = d.ExportProfile(3);
+    Check(round.Notes.Count == 0 && a.Buttons.All(kv => kv.Value.SameAs(c.Buttons[kv.Key])) && a.Dpi.SequenceEqual(c.Dpi),
+          "export + import round trip copies a profile");
 }
 
 Console.WriteLine(failures.Count == 0 ? "\nALL PASSED" : $"\n{failures.Count} FAILED");

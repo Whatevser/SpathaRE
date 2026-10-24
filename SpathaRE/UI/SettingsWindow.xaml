@@ -73,6 +73,13 @@
                             <TextBlock Text="Power"/>
                         </StackPanel>
                     </RadioButton>
+                    <TextBlock Text="APP" Style="{StaticResource Caption}" Margin="22,14,0,6"/>
+                    <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Tag="Hotkeys">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE765;" FontFamily="{StaticResource IconFont}" FontSize="15" Width="28"/>
+                            <TextBlock Text="Hotkeys"/>
+                        </StackPanel>
+                    </RadioButton>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -96,7 +103,25 @@
                     <WrapPanel x:Name="Chips" Margin="0,8,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="ONBOARD PROFILE" Style="{StaticResource Caption}" Margin="0,0,0,6" HorizontalAlignment="Right"/>
+                    <DockPanel Margin="0,0,0,6">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="ExportButton" Style="{StaticResource GhostButton}" Padding="6,2" Margin="6,0,0,0"
+                                    ToolTip="Save button settings and DPI to a file">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE898;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" FontSize="12"/>
+                                    <TextBlock Text="Export" FontSize="11.5"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="ImportButton" Style="{StaticResource GhostButton}" Padding="6,2" Margin="2,0,0,0"
+                                    ToolTip="Load button settings and DPI from a file (also from the other Spatha model)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" FontSize="12"/>
+                                    <TextBlock Text="Import" FontSize="11.5"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <TextBlock Text="ONBOARD PROFILE" Style="{StaticResource Caption}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                    </DockPanel>
                     <WrapPanel x:Name="ProfileStrip" HorizontalAlignment="Right"/>
                 </StackPanel>
             </Grid>
@@ -122,7 +147,7 @@
                         </Grid.ColumnDefinitions>
                         <DockPanel Margin="0,0,16,14">
                             <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Muted}" Margin="4,6,0,0"
-                                       Text="Click a button on the mouse or its callout to change what it does. Changes are saved to the active onboard profile."/>
+                                       Text="Click a button on the mouse or its callout to change what it does. Changes are saved to the active onboard profile. Hover a profile number at the top to see, in red, which buttons switch to it on the mouse."/>
                             <ui:SlotMap x:Name="Map" VerticalAlignment="Top"/>
                         </DockPanel>
 
@@ -140,29 +165,36 @@
 
                                 <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
                                     <!-- shortcut recorder (mice that send combos natively) -->
+                                    <!-- custom combo, original Spatha: the mouse sends it natively -->
                                     <Border x:Name="ShortcutPanel" Visibility="Collapsed" Background="{StaticResource SurfaceAlt}"
+                                            BorderBrush="{StaticResource LineHi}" BorderThickness="1"
                                             CornerRadius="8" Padding="12" Margin="0,0,0,10">
                                         <StackPanel>
-                                            <TextBlock Text="RECORD A SHORTCUT" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
+                                            <TextBlock Text="CUSTOM COMBO" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBlock Style="{StaticResource Muted}" FontSize="11.5" Margin="0,0,0,8"
+                                                       Text="1. Click the box.  2. Press the keys together, e.g. Ctrl+Shift+Esc.  3. Assign. Up to 3 keys plus Ctrl / Shift / Alt / Win; the mouse sends it by itself."/>
                                             <TextBox x:Name="ShortcutBox" IsReadOnly="True" Text="Click here, then press the keys"
-                                                     Cursor="Hand" FontFamily="Consolas"/>
-                                            <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0,6,0,8"
-                                                       Text="Up to 3 keys plus Ctrl / Shift / Alt / Win. The mouse sends it by itself, no software needed."/>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Button x:Name="ShortcutAssign" Content="Assign" Style="{StaticResource AccentButton}" Margin="0,0,8,0"/>
+                                                     Cursor="Hand" FontFamily="Consolas" FontSize="14"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <Button x:Name="ShortcutAssign" Content="Assign to this button" Style="{StaticResource AccentButton}" Margin="0,0,8,0"/>
                                                 <Button x:Name="ShortcutClear" Content="Clear"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- combo replay (Spatha X) -->
+                                    <!-- combo editor, Spatha X: the mouse sends F13-F24, SpathaRE types the keys -->
                                     <Border x:Name="ComboPanel" Visibility="Collapsed" Background="{StaticResource SurfaceAlt}"
+                                            BorderBrush="{StaticResource LineHi}" BorderThickness="1"
                                             CornerRadius="8" Padding="12" Margin="0,0,0,10">
                                         <StackPanel>
-                                            <TextBlock Text="KEYSTROKES SENT" Style="{StaticResource Caption}" Margin="0,0,0,6"/>
-                                            <TextBox x:Name="ComboCommand" FontFamily="Consolas"/>
-                                            <TextBlock Text="e.g. Ctrl+C · Win+Shift+S · 0xA2 0x43" Style="{StaticResource Muted}" FontSize="11" Margin="0,5,0,0"/>
-                                            <TextBlock x:Name="ComboStatus" Style="{StaticResource Muted}" FontSize="11" Margin="0,3,0,0"/>
+                                            <TextBlock x:Name="ComboTitle" Text="EDIT COMBO" Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                                            <TextBlock x:Name="ComboHelp" Style="{StaticResource Muted}" FontSize="11.5" Margin="0,0,0,8"/>
+                                            <TextBox x:Name="ComboRecorder" IsReadOnly="True" Cursor="Hand" FontFamily="Consolas" FontSize="14"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <Button x:Name="ComboSave" Content="Save keys" Style="{StaticResource AccentButton}" Margin="0,0,8,0"/>
+                                                <Button x:Name="ComboDefault" Content="Reset to default"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="ComboStatus" Style="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </Border>
 
@@ -186,14 +218,17 @@
                     <ScrollViewer x:Name="PowerPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="PowerPanel" Margin="0,0,10,10"/>
                     </ScrollViewer>
+                    <ScrollViewer x:Name="HotkeysPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="HotkeysPanel" Margin="0,0,10,10"/>
+                    </ScrollViewer>
 
                     <!-- no device -->
                     <Border x:Name="EmptyState" Visibility="Collapsed" Background="{StaticResource Bg}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="460">
                             <TextBlock Text="&#xE962;" FontFamily="{StaticResource IconFont}" FontSize="44"
                                        Foreground="{StaticResource FgFaint}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="No supported mouse found" Style="{StaticResource H1}" HorizontalAlignment="Center" Margin="0,14,0,6"/>
-                            <TextBlock Style="{StaticResource Muted}" TextAlignment="Center"
+                            <TextBlock x:Name="EmptyTitle" Text="No supported mouse found" Style="{StaticResource H1}" HorizontalAlignment="Center" Margin="0,14,0,6"/>
+                            <TextBlock x:Name="EmptyText" Style="{StaticResource Muted}" TextAlignment="Center"
                                        Text="Plug in a ROG Spatha or Spatha X (cable or dock) and move it to wake it up. Close Armoury Crate so the two programs don't talk to the mouse at the same time."/>
                         </StackPanel>
                     </Border>

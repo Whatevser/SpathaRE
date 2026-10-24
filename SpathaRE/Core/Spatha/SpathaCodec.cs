@@ -93,11 +93,12 @@ public static class SpathaCodec
     }
 
     // ---- buttons: 5 bytes per slot ----
+    /// <summary>Slot names, shared with the Spatha X (see Core/Devices/Buttons.cs). The side grid is
+    /// numbered 1-2-3 / 4-5-6 as on the art; factory keys 7 8 9 / 0 - =.</summary>
     public static readonly string[] SlotNames =
     {
-        "Left click", "Right click", "Wheel click", "Back", "Forward", "DPI",
-        // Side grid, numbered 1-2-3 / 4-5-6 as on the art (factory keys 7 8 9 / 0 - =).
-        "Side 3", "Side 6", "Side 2", "Side 5", "Side 1", "Side 4",
+        "Left click", "Right click", "Wheel click", "Back", "Forward", "DPI button",
+        "Side button 3", "Side button 6", "Side button 2", "Side button 5", "Side button 1", "Side button 4",
         "Wheel up", "Wheel down",
     };
 
@@ -122,7 +123,7 @@ public static class SpathaCodec
 
     private static readonly (byte Mask, string Name)[] MouseNames =
     {
-        (1, "Left click"), (2, "Right click"), (4, "Middle click"), (8, "Back"), (16, "Forward"),
+        (1, "Left click"), (2, "Right click"), (4, "Wheel click"), (8, "Back"), (16, "Forward"),
     };
 
     private static readonly string[] ModifierNames = { "Ctrl", "Shift", "Alt", "Win", "RCtrl", "RShift", "AltGr", "RWin" };
@@ -169,7 +170,7 @@ public static class SpathaCodec
             case 0x0B:
                 return "DPI switch";
             case 0x00 when b[1] <= 1:
-                return b[1] == 0 ? "Scroll up" : "Scroll down";
+                return b[1] == 0 ? "Wheel up" : "Wheel down";
             case 0x01:
             {
                 var names = MouseNames.Where(m => (b[1] & m.Mask) != 0).Select(m => m.Name).ToList();

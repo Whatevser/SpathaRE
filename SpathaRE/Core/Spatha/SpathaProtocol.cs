@@ -82,11 +82,12 @@ public sealed class SpathaProtocol : IDisposable
 
     // ---- memory ----
 
-    public byte ReadByte(int addr)
+    /// <param name="rounds">Send attempts before giving up; lower it for cheap polls.</param>
+    public byte ReadByte(int addr, int rounds = 4)
     {
         byte lo = (byte)addr, hi = (byte)(addr >> 8);
         var r = Transact(new byte[] { CmdRead1, lo, hi, 0, 0 },
-            r => r.Length >= 5 && r[1] == SubRead && r[2] == lo && r[3] == hi);
+            r => r.Length >= 5 && r[1] == SubRead && r[2] == lo && r[3] == hi, rounds: rounds);
         return r[4];
     }
 

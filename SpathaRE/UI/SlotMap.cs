@@ -47,6 +47,7 @@ public sealed class SlotMap : UserControl
     private DeviceModel _model;
     private int _selected = -1;
     private int _hover = -1;
+    private HashSet<int> _highlight = new();
 
     public event EventHandler<int>? SlotSelected;
     public int SelectedSlot => _selected;
@@ -214,7 +215,26 @@ public sealed class SlotMap : UserControl
     {
         if (!_parts.TryGetValue(slot, out var p)) return;
         bool sel = slot == _selected, hov = slot == _hover;
+        if (_highlight.Contains(slot))
+        {
+            // Profile-switch preview: the buttons to press on the mouse, in red.
+            var red = R("Danger");
+            p.Area.Opacity = 1;
+            p.Area.Stroke = red;
+            p.Area.Fill = new SolidColorBrush(((SolidColorBrush)red).Color) { Opacity = 0.6 };
+            p.Leader.Stroke = red;
+            p.Leader.Opacity = 1;
+            p.Leader.StrokeThickness = 1.6;
+            p.Dot.Fill = red;
+            p.Box.BorderBrush = red;
+            p.Box.Background = BoxIdle;
+            p.Notch.Fill = red;
+            return;
+        }
         var accent = R("Accent");
+        p.Area.Stroke = accent;
+        p.Leader.Stroke = accent;
+        p.Dot.Fill = accent;
         p.Area.Opacity = sel ? 1 : hov ? 0.9 : 0.75;
         p.Area.Fill = new SolidColorBrush(((SolidColorBrush)accent).Color) { Opacity = sel ? 0.55 : hov ? 0.32 : 0.14 };
         p.Leader.Opacity = sel ? 1 : hov ? 0.8 : 0.45;
@@ -231,6 +251,14 @@ public sealed class SlotMap : UserControl
         if (old >= 0) Paint(old);
         Paint(slot);
         SlotSelected?.Invoke(this, slot);
+    }
+
+    /// <summary>Paints the given device slots red (empty clears it).</summary>
+    public void Highlight(IEnumerable<int> slots)
+    {
+        var old = _highlight;
+        _highlight = slots.ToHashSet();
+        foreach (int s in old.Union(_highlight)) Paint(s);
     }
 
     /// <summary>Updates the action text shown in every callout.</summary>

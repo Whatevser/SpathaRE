@@ -21,6 +21,7 @@ public static class MouseManager
     /// with another on the same mouse, but two mice never wait for each other.</summary>
     private static readonly Dictionary<IMouseDevice, SemaphoreSlim> _locks = new();
     private static readonly Dictionary<IMouseDevice, int> _lastProfile = new();
+    private static readonly Dictionary<IMouseDevice, bool> _lastReady = new();
     private static IMouseDevice? _selected;
 
     private static SemaphoreSlim Lock(IMouseDevice d)
@@ -37,7 +38,7 @@ public static class MouseManager
     private static readonly System.Timers.Timer _profilePoll = new(1500) { AutoReset = true };
     /// <summary>A Spatha dock with the mouse switched off doesn't answer, and switching the
     /// mouse on fires no USB event. Retry quietly while that's the situation.</summary>
-    private static readonly System.Timers.Timer _spathaRetry = new(15000) { AutoReset = true };
+    private static readonly System.Timers.Timer _spathaRetry = new(6000) { AutoReset = false };
 
     /// <summary>The device the UI and hotkeys act on changed.</summary>
     public static event EventHandler? SelectionChanged;
@@ -57,11 +58,17 @@ public static class MouseManager
         _hotplugDebounce.Elapsed += (_, _) => Task.Run(DetectAll);
         _batteryPoll.Elapsed += (_, _) => Task.Run(RefreshBattery);
         _profilePoll.Elapsed += (_, _) => Task.Run(PollProfiles);
+        // One-shot and re-armed after each scan: probing a dock whose mouse is asleep
+        // takes a few seconds, and scans must not pile up behind each other.
         _spathaRetry.Elapsed += (_, _) => Task.Run(() =>
         {
-            bool have;
-            lock (_lock) have = _devices.OfType<SpathaDevice>().Any();
-            if (!have && SpathaDiscovery.AnyPresent()) lock (_detectLock) DetectSpatha();
+            try
+            {
+                bool have;
+                lock (_lock) have = _devices.OfType<SpathaDevice>().Any();
+                if (!have && SpathaDiscovery.AnyPresent()) lock (_detectLock) DetectSpatha();
+            }
+            finally { if (_running) _spathaRetry.Start(); }
         });
     }
 
@@ -99,8 +106,11 @@ public static class MouseManager
     /// <summary>Kept for older call sites: same as <see cref="Selected"/>.</summary>
     public static IMouseDevice? Active => Selected;
 
+    private static volatile bool _running;
+
     public static void Start()
     {
+        _running = true;
         DeviceList.Local.Changed += (_, _) => { _hotplugDebounce.Stop(); _hotplugDebounce.Start(); };
         _batteryPoll.Start();
         _spathaRetry.Start();
@@ -116,6 +126,7 @@ public static class MouseManager
 
     public static void Stop()
     {
+        _running = false;
         _batteryPoll.Stop();
         _profilePoll.Stop();
         _spathaRetry.Stop();
@@ -190,7 +201,14 @@ public static class MouseManager
         try { dev.Synchronize(); }
         catch (Exception e) { Logger.WriteLine("Spatha sync failed: " + e.Message); }
 
-        dev.ExternalChange += (_, _) => Task.Run(() => PollProfile(dev));
+        // Anything the mouse or dock sends (profile, DPI, battery, put on / taken off
+        // the dock) is also a sign of life, so a sleeping mouse comes back at once.
+        dev.ExternalChange += (_, _) => Task.Run(() =>
+        {
+            NotifyIfReadyChanged(dev);
+            PollProfile(dev);
+            BatteryChanged?.Invoke(dev, EventArgs.Empty);
+        });
         Add(dev);
     }
 
@@ -207,6 +225,7 @@ public static class MouseManager
         {
             _devices.Add(dev);
             _lastProfile[dev] = dev.IsReady ? dev.Profile : -1;
+            _lastReady[dev] = dev.IsReady;
         }
         Logger.WriteLine($"{dev.Name} ({dev.ConnectionLabel}) connected");
         DevicesChanged?.Invoke(dev, EventArgs.Empty);
@@ -218,6 +237,7 @@ public static class MouseManager
         {
             if (!_devices.Remove(dev)) return;
             _lastProfile.Remove(dev);
+            _lastReady.Remove(dev);
             _locks.Remove(dev);
             if (_selected == dev) _selected = null;
         }
@@ -235,14 +255,13 @@ public static class MouseManager
             if (!d.HasBattery) continue;
             var io = Lock(d);
             if (!io.Wait(0)) continue;     // never queue behind a user action
-            bool wasReady = d.IsReady;
             try
             {
-                if (!d.IsReady) d.Synchronize(); else d.ReadBattery();
+                if (!d.IsReady) d.PollWake(); else d.ReadBattery();
             }
             catch (Exception e) { Logger.WriteLine($"{d.Name}: battery read failed: {e.Message}"); }
             finally { io.Release(); }
-            if (d.IsReady != wasReady) DevicesChanged?.Invoke(d, EventArgs.Empty);
+            NotifyIfReadyChanged(d);
             BatteryChanged?.Invoke(d, EventArgs.Empty);
         }
     }
@@ -252,9 +271,42 @@ public static class MouseManager
         foreach (var d in Snapshot()) PollProfile(d);
     }
 
+    /// <summary>Raises DevicesChanged when a mouse went to sleep or woke up since last time.</summary>
+    private static void NotifyIfReadyChanged(IMouseDevice d)
+    {
+        bool changed;
+        lock (_lock)
+        {
+            if (!_lastReady.TryGetValue(d, out bool was)) return;
+            changed = was != d.IsReady;
+            _lastReady[d] = d.IsReady;
+        }
+        if (!changed) return;
+        Logger.WriteLine(d.IsReady ? $"{d.Name}: answering again" : $"{d.Name}: stopped answering (asleep or out of range)");
+        DevicesChanged?.Invoke(d, EventArgs.Empty);
+    }
+
+    /// <summary>The original Spatha has a one-request probe, so a sleeping one is checked on
+    /// every profile tick and shows up again within seconds of waking.</summary>
+    private static void TryWake(IMouseDevice d)
+    {
+        var io = Lock(d);
+        if (!io.Wait(0)) return;
+        try { d.PollWake(); }
+        catch (Exception e) { Logger.WriteLine($"{d.Name}: wake check failed: {e.Message}"); }
+        finally { io.Release(); }
+        if (d.IsReady) lock (_lock) _lastProfile[d] = d.Profile;
+        NotifyIfReadyChanged(d);
+    }
+
     private static void PollProfile(IMouseDevice d)
     {
-        if (!d.IsReady || d.ProfileCount < 2) return;
+        if (!d.IsReady)
+        {
+            if (d is SpathaDevice) TryWake(d);
+            return;
+        }
+        if (d.ProfileCount < 2) return;
         var io = Lock(d);
         if (!io.Wait(0)) return;
         int previous;
@@ -264,12 +316,8 @@ public static class MouseManager
         catch (Exception e) { Logger.WriteLine($"{d.Name}: profile poll failed: {e.Message}"); return; }
         finally { io.Release(); }
 
-        if (!d.IsReady)
-        {
-            Logger.WriteLine($"{d.Name}: stopped answering (asleep?)");
-            DevicesChanged?.Invoke(d, EventArgs.Empty);
-            return;
-        }
+        NotifyIfReadyChanged(d);
+        if (!d.IsReady) return;
         if (!changed && d.Profile == previous) return;
         lock (_lock) _lastProfile[d] = d.Profile;
         Logger.WriteLine($"{d.Name}: profile changed on the mouse {previous + 1} -> {d.Profile + 1}");
@@ -301,6 +349,7 @@ public static class MouseManager
 
     public static Task SetProfileAsync(IMouseDevice? d, int profile) => Run(d, $"SetProfile({profile})", d =>
     {
+        if (profile < 0 || profile >= d.ProfileCount) return;   // e.g. the profile 6 hotkey on a Spatha X
         int previous = d.Profile;
         d.SetProfile(profile);
         lock (_lock) _lastProfile[d] = d.Profile;
@@ -340,6 +389,79 @@ public static class MouseManager
 
     public static Task SetLightingAsync(IMouseDevice? d, int zone, LightState state) =>
         Run(d, $"SetLighting({zone})", d => d.SetLighting(zone, state));
+
+    // ---- export / import -------------------------------------------------
+
+    /// <summary>Reads the given profiles (buttons and DPI). Switches back to the
+    /// active profile afterwards if the mouse had to change profile to read them.</summary>
+    public static Task<ProfileFile?> ExportAsync(IMouseDevice? d, IReadOnlyList<int> profiles) => Task.Run(() =>
+    {
+        if (d is null || !d.IsReady) return null;
+        BusyChanged?.Invoke(d, true);
+        var io = Lock(d);
+        io.Wait();
+        int original = d.Profile;
+        try
+        {
+            var file = new ProfileFile { Model = d.Model.ToString() };
+            foreach (int p in profiles) file.Profiles.Add(d.ExportProfile(p));
+            return file;
+        }
+        catch (Exception e)
+        {
+            Logger.WriteLine($"{d.Name}: export failed: {e.Message}");
+            WriteCompleted?.Invoke(d, "export failed: " + e.Message);
+            return null;
+        }
+        finally
+        {
+            RestoreProfile(d, original);
+            io.Release();
+            BusyChanged?.Invoke(d, false);
+        }
+    });
+
+    /// <summary>Writes each (target profile, data) pair. Throws nothing; problems end up in the report.</summary>
+    public static Task<ImportReport> ImportAsync(IMouseDevice? d, IReadOnlyList<(int Target, PortableProfile Data)> items) => Task.Run(() =>
+    {
+        var report = new ImportReport();
+        if (d is null || !d.IsReady) { report.Note("The mouse isn't connected."); return report; }
+        BusyChanged?.Invoke(d, true);
+        var io = Lock(d);
+        io.Wait();
+        int original = d.Profile;
+        try
+        {
+            foreach (var (target, data) in items)
+            {
+                try { d.ImportProfile(target, data, report); }
+                catch (Exception e)
+                {
+                    report.Note($"Profile {target + 1}: failed: {e.Message}");
+                    Logger.WriteLine($"{d.Name}: import into profile {target + 1} failed: {e.Message}");
+                }
+            }
+        }
+        finally
+        {
+            RestoreProfile(d, original);
+            io.Release();
+            BusyChanged?.Invoke(d, false);
+        }
+        BindingsChanged?.Invoke(d, EventArgs.Empty);
+        ProfileChanged?.Invoke(d, new ProfileChangedEventArgs(original, d.Profile, external: false));
+        return report;
+    });
+
+    private static void RestoreProfile(IMouseDevice d, int original)
+    {
+        try
+        {
+            if (d.Profile != original) d.SetProfile(original);
+            lock (_lock) _lastProfile[d] = d.Profile;
+        }
+        catch (Exception e) { Logger.WriteLine($"{d.Name}: couldn't switch back to profile {original + 1}: {e.Message}"); }
+    }
 
     public static Task ResyncAsync(IMouseDevice? d) =>
         Run(d, "Resync", d =>

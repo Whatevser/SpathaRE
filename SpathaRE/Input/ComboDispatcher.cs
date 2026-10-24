@@ -132,6 +132,51 @@ public sealed class ComboDispatcher
         return result;
     }
 
+    /// <summary>Readable form of a combo command, e.g. "Ctrl+Shift+Esc". Falls back to the text itself.</summary>
+    public static string Describe(string? command)
+    {
+        var keys = ParseCommand(command);
+        return keys.Count == 0 ? (command ?? "") : Describe(keys);
+    }
+
+    public static string Describe(IEnumerable<Keys> keys) => string.Join("+", keys.Select(KeyName).Distinct());
+
+    public static string KeyName(Keys k)
+    {
+        if (k >= Keys.D0 && k <= Keys.D9) return ((char)('0' + (k - Keys.D0))).ToString();
+        if (k >= Keys.NumPad0 && k <= Keys.NumPad9) return "Num " + (k - Keys.NumPad0);
+        return k switch
+        {
+            Keys.LControlKey or Keys.RControlKey or Keys.ControlKey => "Ctrl",
+            Keys.LShiftKey or Keys.RShiftKey or Keys.ShiftKey => "Shift",
+            Keys.LMenu or Keys.RMenu or Keys.Menu => "Alt",
+            Keys.LWin or Keys.RWin => "Win",
+            Keys.Escape => "Esc",
+            Keys.Back => "Backspace",
+            Keys.Return => "Enter",
+            Keys.PageUp => "PageUp",
+            Keys.PageDown => "PageDown",
+            Keys.Capital => "CapsLock",
+            Keys.Snapshot => "PrintScreen",
+            Keys.Apps => "Menu",
+            Keys.OemMinus => "-",
+            Keys.Oemplus => "=",
+            Keys.OemOpenBrackets => "[",
+            Keys.OemCloseBrackets => "]",
+            Keys.OemPipe => "\\",
+            Keys.OemSemicolon => ";",
+            Keys.OemQuotes => "'",
+            Keys.Oemtilde => "`",
+            Keys.Oemcomma => ",",
+            Keys.OemPeriod => ".",
+            Keys.OemQuestion => "/",
+            _ => k.ToString(),
+        };
+    }
+
+    /// <summary>Stored form of a key list: the hex virtual-key codes, which always parse back.</summary>
+    public static string ToCommand(IEnumerable<Keys> keys) => string.Join(" ", keys.Select(k => $"0x{(int)k:X2}"));
+
     private static List<int> ParseHexValues(string input)
     {
         const string token = @"\b(0x[0-9A-Fa-f]{1,2}|[0-9A-Fa-f]{1,2})\b";
