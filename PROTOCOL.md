@@ -49,7 +49,14 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 | `C4 14 00 02/01 01/00` → `B0 F0 …` | | "KData" mode: sensor data dump (8×16-bit) | [C] |
 | report `10 00 F0 00 + 9 bytes` | – | LED preview, 3×RGB (newer HID library) | [C] |
 
-While in driver mode the mouse sends **input report 3**: `03 A2 p` = profile changed, `03 A3 v` = DPI changed. **[C]**
+The mouse sends **input report 3** on the vendor collection (dock: interface 1, usage page 0x0008). The code only expects these in driver mode, but on hardware the dock sends them in normal mode too: **[C]** + confirmed on hardware
+
+| Event | Meaning |
+|---|---|
+| `03 A2 p` | profile p (0-based) is active; also sent after the mouse is placed on the dock and repeatedly while it (re)connects |
+| `03 A3 v` | DPI changed [C] |
+| `03 A8 n` | battery level n % (seen `5F` = 95, `55` = 85), sent shortly after the mouse is placed on the dock |
+| `03 AA 01` / `03 AA 00` | mouse placed on / removed from the dock (charging contact) |
 
 ## 3. Memory map
 
