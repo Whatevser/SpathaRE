@@ -35,6 +35,7 @@ python spatha.py battery-alert 15
 python spatha.py profile 2
 python spatha.py identify             # press buttons to see their slot numbers
 python spatha.py restore original.bin
+python spatha.py reset-profile -p 1   # Armoury's factory defaults for one profile
 ```
 
 Raw access for experimenting:

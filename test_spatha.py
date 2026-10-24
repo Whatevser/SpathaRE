@@ -198,3 +198,12 @@ def test_identify_interrupted_then_recovered(mouse, monkeypatch, tmp_path):
     run(spatha, "--no-backup", "identify")                  # second run recovers
     assert bytes(fake.mem[0x183:0x183 + 70]) == orig
     assert not (tmp_path / "spatha_identify_saved.bin").exists()
+
+
+def test_reset_profile(mouse):
+    fake, spatha = mouse
+    run(spatha, "--no-backup", "button", "3", "key:a", "-p", "4")
+    run(spatha, "--no-backup", "reset-profile", "-p", "4")
+    assert bytes(fake.mem[0x400:0x4CD]) == spatha.FACTORY_PROFILE
+    assert len(spatha.FACTORY_PROFILE) == 0xCD
+    assert bytes(fake.mem[0x100:0x1CD]) != spatha.FACTORY_PROFILE   # other profiles untouched

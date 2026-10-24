@@ -54,6 +54,24 @@ OFF_POLL_WIRELESS = 0xCC
 OFF_CALIBRATION = 0xD0
 PROFILE_USED = 0xD1     # bytes 0x00..0xD0 are the known/used part of a profile
 
+# Armoury's built-in factory profile (offsets 0x00-0xCC), the values its
+# "reset profile" writes. Profile names (0xD1+) are not part of it.
+FACTORY_PROFILE = bytes.fromhex(
+    "02008b20202008083232808000000000"
+    "ff0a9f00ff0000ff0000ff0000ff0000"
+    "ff0000ff0000ff0000ff0000ff0000ff"
+    "0000ff0000ff000a9f00ff0000ff0000"
+    "ff0000ff0000ff0000ff0000ff0000ff"
+    "0000ff0000ff0000ff0000ff000a9f00"
+    "ff0000ff0000ff0000ff0000ff0000ff"
+    "0000ff0000ff0000ff0000ff0000ff00"
+    "00ff0001010000000102000000010400"
+    "0000010800000001100000000b000000"
+    "00020026000002002e00000200250000"
+    "02002d00000200240000020027000000"
+    "000000000001270000180a1402"
+)
+
 POLL_CODES = {125: 8, 250: 4, 500: 2, 1000: 1}
 POLL_NAMES = {v: k for k, v in POLL_CODES.items()}
 
@@ -694,6 +712,12 @@ def cmd_battery_alert(args):
     write_profile_bytes(sp, args, p, {OFF_LOW_BATT: v})
 
 
+def cmd_reset_profile(args):
+    sp = open_device(args)
+    p = resolve_profile(sp, args)
+    write_profile_bytes(sp, args, p, dict(enumerate(FACTORY_PROFILE)))
+
+
 def cmd_read(args):
     sp = open_device(args)
     data = sp.read(args.addr, args.count)
@@ -778,6 +802,7 @@ def build_parser():
     s.add_argument("minutes", help="1, 2, 3, 5, 10 or never")
     s = add("battery-alert", cmd_battery_alert, "low battery warning level", profile=True)
     s.add_argument("percent", help="10, 15, 20, 25, 30 or off")
+    add("reset-profile", cmd_reset_profile, "restore a profile to Armoury's factory defaults", profile=True)
     s = add("read", cmd_read, "read raw memory")
     s.add_argument("addr", type=parse_int)
     s.add_argument("count", type=parse_int, nargs="?", default=16)
