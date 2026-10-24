@@ -248,19 +248,27 @@ class Spatha:
         self.write_byte(REG_PROFILE, new)
         self.ctrl(0x07, new, 0, 0)     # load profile
 
-    def status(self):
-        """C4 08 00 -> B0 55 AA <n>  or  B0 3C C3 <n> (charging?)."""
-        self._send([CMD_CTRL, 0x08, 0x00, 0, 0, 0, 0, 0])
+    def query(self, sel):
+        """C4 08 <sel>. Replies: B0 55 AA n, B0 5A A5 n (sel 1) or B0 3C C3 n."""
+        self._send([CMD_CTRL, 0x08, sel, 0, 0, 0, 0, 0])
         time.sleep(0.03)
         for _ in range(15):
             r = self._recv()
-            if len(r) >= 4 and r[0] == ACK:
-                if r[1] == 0x55 and r[2] == 0xAA:
-                    return ("ok", r[3])
-                if r[1] == 0x3C and r[2] == 0xC3:
-                    return ("charging", r[3])
+            if len(r) >= 4 and r[0] == ACK and (r[1], r[2]) in ((0x55, 0xAA), (0x5A, 0xA5), (0x3C, 0xC3)):
+                return r[1:4]
             time.sleep(0.03)
-        return ("unknown", None)
+        return None
+
+    def mode_state(self):
+        """C4 06 02 02 -> B0 C5 n (Armoury command 0x6E)."""
+        self._send([CMD_CTRL, 0x06, 0x02, 0x02, 0, 0, 0, 0])
+        time.sleep(0.03)
+        for _ in range(15):
+            r = self._recv()
+            if len(r) >= 3 and r[0] == ACK and r[1] == 0xC5:
+                return r[2]
+            time.sleep(0.03)
+        return None
 
 
 def profile_base(p):
@@ -590,9 +598,18 @@ def cmd_info(args):
     sp = open_device(args)
     reg = sp.profile_reg()
     print(f"active profile : {(reg & 15) + 1} of {reg >> 4}   (reg 0x19 = 0x{reg:02X})")
-    state, val = sp.status()
-    print(f"status (C4 08) : {state} {val if val is not None else ''}  "
-          "(battery %, 0 = wired/unknown; unverified)")
+    labels = {0: "this device's firmware? (receiver: 40 = v1.40)",
+              2: "mouse firmware via receiver? (80 = v1.80)",
+              1: "unknown"}
+    for sel in (0, 2, 1):
+        r = sp.query(sel)
+        if r is None:
+            print(f"C4 08 {sel:02X}       : no reply")
+        else:
+            tag = " (3C C3 form)" if r[0] == 0x3C else ""
+            print(f"C4 08 {sel:02X}       : {r[2]:3d}  [{r.hex(' ')}]{tag}  {labels[sel]}")
+    m = sp.mode_state()
+    print(f"C4 06 02 02    : {m if m is not None else 'no reply'}  (meaning unknown)")
 
 
 def cmd_show(args):

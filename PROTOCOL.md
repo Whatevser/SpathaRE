@@ -35,8 +35,9 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 | `DE lo hi v` | `B0 C1 lo hi` | write 1 byte (addr < 0x2000) | [C] |
 | `C4 00 00 00 00` | – | **EnableSetting / commit**. Sent after every settings write, followed by a 250 ms wait | [C] |
 | `C4 07 <reg19> 00 00` | – | load/activate profile (sent after writing reg 0x19) | [C] |
-| `C4 08 00` | `B0 55 AA n` or `B0 3C C3 n` | status, probably battery level; the `3C C3` form seems to mean "charging" | [C] format, [I] meaning |
-| `C4 08 02` | same | status of the RF link/dongle | [I] |
+| `C4 08 00` | `B0 55 AA n` or `B0 3C C3 n` | value of the device answering. Via the receiver this returned 40 = receiver firmware 1.40 (**not battery**) | [C] format, hardware |
+| `C4 08 02` | `B0 55 AA n` | used by Armoury only through the receiver, probably the mouse's own value (firmware?) | [C] format, [I] meaning |
+| `C4 08 01` | `B0 5A A5 n` | unknown, battery candidate | [C] format |
 | `C4 06 02 01/00` | – | enter/leave Aura Sync direct mode (IfSpatha sends `FF` to enable "driver mode") | [C] |
 | `C4 03 05 01 <frame>` / `C4 03 05 00 00` → `B0 C5 frame` | | set/get Aura Sync frame | [C] |
 | `C4 0F 00 <off> <v>` | – | live (non-saved) write of a profile register, used for LED preview | [C] |

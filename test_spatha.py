@@ -53,7 +53,10 @@ class FakeSpatha:
             self.mem[addr] = buf[4]
             self.reply = bytes([0xB0, 0xC1, lo, hi])
         elif cmd == 0xC4 and buf[2] == 0x08:
-            self.reply = bytes([0xB0, 0x55, 0xAA, 77])
+            self.reply = bytes([0xB0, 0x5A, 0xA5, 90]) if buf[3] == 1 else \
+                bytes([0xB0, 0x55, 0xAA, 40 if buf[3] == 0 else 80])
+        elif cmd == 0xC4 and buf[2:5] == bytes([6, 2, 2]):
+            self.reply = bytes([0xB0, 0xC5, 0])
         elif cmd == 0xC4:
             self.reply = b""
         return len(buf)
@@ -94,6 +97,7 @@ def test_info_and_show(mouse, capsys):
     run(spatha, "info")
     out = capsys.readouterr().out
     assert "active profile : 1 of 6" in out
+    assert " 40 " in out and " 80 " in out and " 90 " in out
     run(spatha, "show")
     out = capsys.readouterr().out
     assert "1600" in out and "400" in out and "1000 Hz" in out
