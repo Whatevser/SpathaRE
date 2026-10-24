@@ -356,7 +356,11 @@ def open_device(args):
         # Skip the memory-read probe (which needs the mouse awake) and take
         # the first Spatha collection that opens, e.g. to talk to the dock
         # while the mouse is switched off.
-        for info in candidates():         # keyboard collection first
+        # Col03 is the collection that answered on the dock (and is where
+        # Armoury talks); Col01 is the plain keyboard and rejects the report.
+        infos = sorted(candidates(),
+                       key=lambda d: b"col03" not in bytes(d["path"]).lower())
+        for info in infos:
             dev = hid.device()
             try:
                 dev.open_path(info["path"])
