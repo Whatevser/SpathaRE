@@ -10,26 +10,25 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
-    <!-- WFO0003: WinForms would like high-DPI mode set in code instead of app.manifest.
-         The manifest is what WPF reads, and WPF draws everything here, so it stays. -->
-    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <Version>1.1.0</Version>
     <Product>SpathaRE</Product>
     <ApplicationIcon>Assets\SpathaRE.ico</ApplicationIcon>
     <AssemblyName>SpathaRE</AssemblyName>
     <RootNamespace>SpathaRE</RootNamespace>
     <DebugType>embedded</DebugType>
-    <!-- WFAC010: the WinForms analyzer wants DPI configured via ApplicationHighDpiMode.
-         That is WinForms-only advice; this is a WPF app, and WPF reads PerMonitorV2
-         from the manifest. Keep the manifest, silence the analyzer. -->
-    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <!-- WFO0003 / WFAC010: the WinForms analyzers want high-DPI mode set in code instead
+         of app.manifest. WPF draws everything here and reads PerMonitorV2 from the
+         manifest, so the manifest stays and the warnings are silenced. -->
+    <NoWarn>$(NoWarn);WFO0003;WFAC010</NoWarn>
 
-    <!-- ARM64 native. This is the whole point: G-Helper pins x64 because of
-         nvapi64.dll and the Ryzen SMU / Intel MSR blobs. None of that is here. -->
+    <!-- Native x64 and ARM64 builds; nothing in the app is architecture-specific. -->
     <Platforms>ARM64;x64</Platforms>
     <Platform>ARM64</Platform>
     <RuntimeIdentifiers>win-arm64;win-x64</RuntimeIdentifiers>
     <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
+    <!-- Small single-file exe that uses the installed .NET 10 Desktop Runtime, like
+         G-Helper. When the runtime is missing, the .NET launcher itself says so and
+         offers the download page. -->
     <SelfContained>false</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>

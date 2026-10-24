@@ -43,6 +43,16 @@ talk to it, and shares the same settings window.
 Close Armoury Crate while using SpathaRE. Both programs talking to the mouse at
 the same time works, but they overwrite each other and everything gets slow.
 
+## Install
+
+Download `SpathaRE-x64.exe` (or `SpathaRE-arm64.exe` for Windows on ARM) from
+[Releases](https://github.com/Whatevser/SpathaRE/releases) and run it. There's
+nothing to install; it's a single small exe.
+
+It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0),
+like G-Helper does. If it isn't installed, Windows says so when you start
+SpathaRE and offers the download page.
+
 ## Using it
 
 ### Combos (key combinations)
@@ -132,14 +142,15 @@ Hotkey gestures use WPF key names (`F13`, `NumPad1`, `OemPlus`, `OemTilde`).
 ## Build
 
 ```powershell
-dotnet build -c Release
-dotnet publish -c Release -r win-x64 -p:Platform=x64
-dotnet publish -c Release -r win-arm64
+dotnet build SpathaRE -c Release
+dotnet publish SpathaRE -c Release -r win-x64 -p:Platform=x64
+dotnet publish SpathaRE -c Release -r win-arm64 -p:Platform=ARM64
 ```
 
-Requires the .NET 10 SDK. The output is a framework-dependent single file; add
-`-p:SelfContained=true` if you'd rather not install the runtime. Nothing native
-is compiled, so either architecture can be built from either machine.
+Requires the .NET 10 SDK. `publish` makes the same single exe as the releases,
+about 1 MB, which uses the installed .NET 10 Desktop Runtime. Nothing native is
+compiled, so either architecture can be built from either machine. GitHub
+Actions builds both on every push (`.github/workflows/build.yml`).
 
 ## Tests
 

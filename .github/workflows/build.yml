@@ -1,7 +1,8 @@
-# Builds SpathaRE.exe (x64 and ARM64) on every push and pull request.
+# Builds SpathaRE (x64 and ARM64, small exes that use the installed .NET 10
+# Desktop Runtime) on every push and pull request.
 # Download it from the run's "Artifacts" section.
 # Releases: publishing a GitHub release (or pushing a tag like 1.2.0 / v1.2.0)
-# builds and attaches both zips. For a release that already exists, run this
+# builds and attaches both exes. For a release that already exists, run this
 # workflow by hand (Actions -> Build -> Run workflow) and enter its tag.
 name: Build
 
@@ -15,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Attach the zips to this existing release tag (e.g. 1.0.0); leave empty to just build'
+        description: 'Attach the exes to this existing release tag (e.g. 1.0.0); leave empty to just build'
         required: false
         default: ''
 
@@ -40,42 +41,37 @@ jobs:
       - name: Tests
         run: dotnet run --project SpathaRE.Tests -c Release
 
+      # Framework-dependent single file (settings in SpathaRE.csproj): a small exe that
+      # needs the .NET 10 Desktop Runtime and offers to install it when it's missing.
       - name: Publish x64
-        run: >
-          dotnet publish SpathaRE -c Release -r win-x64 -p:Platform=x64
-          -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true -p:DebugType=none
-          -o out/SpathaRE-win-x64
+        run: dotnet publish SpathaRE -c Release -r win-x64 -p:Platform=x64 -o out/x64
 
       - name: Publish ARM64
-        run: >
-          dotnet publish SpathaRE -c Release -r win-arm64 -p:Platform=ARM64
-          -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true -p:DebugType=none
-          -o out/SpathaRE-win-arm64
+        run: dotnet publish SpathaRE -c Release -r win-arm64 -p:Platform=ARM64 -o out/arm64
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SpathaRE-win-x64
-          path: out/SpathaRE-win-x64
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SpathaRE-win-arm64
-          path: out/SpathaRE-win-arm64
-
-      - name: Zip for release
-        if: env.RELEASE_TAG != ''
+      - name: Name the executables
         shell: pwsh
         run: |
-          Compress-Archive out/SpathaRE-win-x64 SpathaRE-win-x64.zip
-          Compress-Archive out/SpathaRE-win-arm64 SpathaRE-win-arm64.zip
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item out/x64/SpathaRE.exe dist/SpathaRE-x64.exe
+          Copy-Item out/arm64/SpathaRE.exe dist/SpathaRE-arm64.exe
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpathaRE-x64
+          path: dist/SpathaRE-x64.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpathaRE-arm64
+          path: dist/SpathaRE-arm64.exe
 
       - uses: softprops/action-gh-release@v2
         if: env.RELEASE_TAG != ''
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: |
-            SpathaRE-win-x64.zip
-            SpathaRE-win-arm64.zip
+            dist/SpathaRE-x64.exe
+            dist/SpathaRE-arm64.exe
           generate_release_notes: true
