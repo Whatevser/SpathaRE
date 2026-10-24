@@ -1,15 +1,14 @@
 # Builds SpathaRE (x64 and ARM64, small exes that use the installed .NET 10
 # Desktop Runtime) on every push and pull request.
 # Download it from the run's "Artifacts" section.
-# Releases: publishing a GitHub release (or pushing a tag like 1.2.0 / v1.2.0)
-# builds and attaches both exes. For a release that already exists, run this
+# Releases: publishing a GitHub release builds and attaches both exes (one run;
+# a separate tag trigger would race it). For a release that already exists, run this
 # workflow by hand (Actions -> Build -> Run workflow) and enter its tag.
 name: Build
 
 on:
   push:
     branches: [main]
-    tags: ['v*', '[0-9]*']
   release:
     types: [published]
   pull_request:
