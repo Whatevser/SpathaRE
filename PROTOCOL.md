@@ -72,9 +72,9 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is nam
 | 0x04/0x05 | DPI stage 1 X / Y | raw; **DPI = (raw+1)×50** (ADNS-9800: 50 CPI steps, 0xA4 = 8200). Armoury default 31 = 1600 | [C], confirmed on hardware |
 | 0x06/0x07 | DPI stage 2 X / Y | same as above (default 7 = 400) | |
 | 0x0C | acceleration / deceleration | low nibble accel, high nibble decel, 0–10 each | [C] |
-| 0x11–0x36 | LED zone 3: base / side-button area ("Base" in Armoury's Aura layout) | see below | confirmed on hardware |
-| 0x37–0x5C | LED zone 2: scroll wheel | | confirmed on hardware |
-| 0x5D–0x82 | LED zone 1: ROG logo | | confirmed on hardware |
+| 0x11–0x36 | LED zone 3: base / side-button area ("Base" in Armoury's Aura layout) | see below | matched to Armoury's UI |
+| 0x37–0x5C | LED zone 2: scroll wheel | | matched to Armoury's UI |
+| 0x5D–0x82 | LED zone 1: ROG logo | | matched to Armoury's UI |
 | 0x83–0xC8 | 14 button slots × 5 bytes | see below | [C] |
 | 0xC9 | button response | `16 + 8*index` (index 0–6) | [C] |
 | 0xCA | sleep timer | minutes 1/2/3/5/10, `FF` = never | [C] values, [I] meaning |
@@ -93,7 +93,7 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is nam
 +2  RGB × 12
 ```
 
-Armoury's default (from the SYNC DLL) for every zone is `0A 7E FF 00 00 …`: breathing, wired brightness 4, wireless brightness 2, red. Armoury's Aura layout file (`ROG SPATHA.csv`) names the three LEDs **Base**, **Wheel** and **Logo**: zone 1 = logo, zone 2 = wheel, zone 3 = base (confirmed on hardware). Armoury's UI applies one effect to all zones, or per-zone settings via a separate entry.
+Armoury's default (from the SYNC DLL) for every zone is `0A 7E FF 00 00 …`: breathing, wired brightness 4, wireless brightness 2, red. Armoury's Aura layout file (`ROG SPATHA.csv`) names the three LEDs **Base**, **Wheel** and **Logo**: zone 1 = logo, zone 2 = wheel, zone 3 = base (matched by changing each zone in Armoury and reading which bytes changed; on the test mouse the LEDs themselves don't light). Armoury's UI applies one effect to all zones, or per-zone settings via a separate entry.
 
 #### Button slot (5 bytes)
 
