@@ -34,7 +34,8 @@ their look is unverified.
 * Alternate mode, chosen by a flag in Armoury: the mouse collection whose `FeatureReportByteLength == 9`, report ID `0x00`, 9 bytes. **[C]**
 * Requests are `RID CMD p1 p2 p3 …` padded with zeros. Replies (GetFeature) begin with **`B0`** in byte 0, so the firmware doesn't echo the report ID. `B1` = busy/NAK and `FF` = no data yet; on either, retry the GetFeature. **[C]** On the dock with the mouse switched off, every command (including `C4 08 00`) gets `B1` and then `B2`: the dock relays everything to the mouse and `B2` appears to mean "mouse not reachable". The dock answers nothing on its own. (hardware)
 * Armoury's timing: SetFeature → ~30 ms → GetFeature, retried up to 15× at 30 ms intervals; the whole command is retried up to 300×. **[C]**
-* The newer `SPATHA_HID_Library` passes buffer lengths of 0x805 (set) and 0x21 (get). Windows accepts oversized buffers, so these lengths don't indicate the real report size.
+* The newer `SPATHA_HID_Library` passes buffer lengths of 0x805 (set) and 0x21 (get). Windows accepts oversized buffers, so these lengths don't indicate the real report size. They matter on the dock, though: its vendor collection declares a 4101-byte feature report but never answers a GetFeature of that size; reading 0x21 (33) bytes, as Armoury does, works. (hardware)
+* The dock (`0B05:1824`) uses the same protocol as the cable: interface 1, collection `Col03`, report ID `0x0C`. It relays every request to the mouse over radio, so replies are slower. (hardware)
 
 ## 2. Commands
 
@@ -141,7 +142,7 @@ Armoury groups the slots as two lists: `[0x83 0x88 0x8D 0xBF 0xC4 0x9C 0x97 0x92
 
 `spatha.py identify` temporarily maps slots 1–13 to letters and reports which slot each physical button belongs to.
 
-Keys are stored as raw HID usages, so any key can be bound even where Armoury's UI won't allow it. That likely explains the Backspace issue in the g-helper report: Backspace is `02 00 2A 00 00`.
+Keys are stored as raw HID usages, so any key can be bound even where Armoury's UI won't allow it. That explains the Backspace problem in [seerge/g-helper#5892](https://github.com/seerge/g-helper/issues/5892) (binding Backspace in Armoury didn't work on the original Spatha; the reporter used Scroll Lock plus a PowerToys remap). Written directly, Backspace is `02 00 2A 00 00`; SpathaRE and `spatha.py` bind it that way (hardware).
 
 ## 4. Typical sequences
 
@@ -152,5 +153,8 @@ Keys are stored as raw HID usages, so any key can be bound even where Armoury's 
 ## 5. Not covered yet
 
 * Macros (`SetMacro`). The code converts Armoury macro events and stores them through a separate routine (`sub_10006dc0`), not decoded.
-* RF dongle PID/usage, and whether the dongle wants report ID 0 / 9 bytes.
-* What raw effect 14 does (not offered in Armoury's UI).
+* What raw effect 14 does (not offered in Armoury's UI). The test mouse's LEDs don't light, so no lighting effect has been seen on hardware.
+* `C4 08 01` (constant `AA`) and the value `C4 06 02 02` returns.
+* Most of the global area 0x000-0x0FF besides the profile register 0x19.
+
+(The dock question listed here before is answered in section 1: PID `0B05:1824`, `Col03`, report ID `0x0C`, 33-byte reads.)
