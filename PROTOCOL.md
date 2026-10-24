@@ -96,7 +96,7 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is nam
 +0  effect      1=static(1 colour) 10=breathing(2) 5=colour cycle(12) 6=random
                 12=reactive(1) 11=battery (pulses green/blue/red by charge level)
                 14 = accepted by Armoury's converter but not offered in its UI
-+1  brightness  low nibble = wired, high nibble = wireless; steps 0,4,7,11,14 (= Armoury 0..4)
++1  brightness  low nibble = wired, high nibble = wireless; steps 0,4,7,11,14 (= Armoury 0..4: off, then 25 / 50 / 75 / 100 %)
 +2  RGB × 12
 ```
 

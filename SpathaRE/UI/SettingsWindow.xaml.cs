@@ -1074,7 +1074,7 @@ public partial class SettingsWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         var slider = new Slider { Minimum = 0, Maximum = max, TickFrequency = 1, IsSnapToTickEnabled = true, Value = Math.Clamp(value, 0, max) };
-        string Text(int v) => v == 0 ? "Off" : max <= 4 ? $"{v}/{max}" : $"{v * 100 / max}%";
+        string Text(int v) => v == 0 ? "Off" : $"{v * 100 / max}%";     // both mice: Off, 25, 50, 75, 100 %
         var text = new TextBlock { Text = Text(value), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
         Grid.SetColumn(text, 1);
         grid.Children.Add(slider);

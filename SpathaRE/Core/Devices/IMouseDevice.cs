@@ -128,6 +128,7 @@ public sealed class LightZone
     public required string Name { get; init; }
     public required IReadOnlyList<LightEffect> Effects { get; init; }
     public required LightState State { get; init; }
+    /// <summary>Brightness levels above off; 4 on both Spathas (25/50/75/100 %).</summary>
     public int MaxBrightness { get; init; } = 4;
     public bool HasWirelessBrightness { get; init; }
 }

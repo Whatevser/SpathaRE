@@ -272,12 +272,12 @@ public sealed class AsusMouseDevice : IMouseDevice
                         m.SupportsColorSetting(x.Mode) ? 1 : 0,
                         m.SupportsAnimationSpeed(x.Mode),
                         m.SupportsRandomColor(x.Mode))).ToList(),
-                    MaxBrightness = m.MaxBrightness(),
+                    MaxBrightness = 4,
                     State = new LightState
                     {
                         Effect = Math.Max(0, Array.FindIndex(modes, x => x.Mode == s.LightingMode)),
                         Colors = new[] { s.RGBColor },
-                        Brightness = s.Brightness,
+                        Brightness = LevelFromPercent(s.Brightness, m.MaxBrightness()),
                         Speed = s.AnimationSpeed switch { AnimationSpeed.Slow => 0, AnimationSpeed.Fast => 2, _ => 1 },
                         Random = s.RandomColor,
                     },
@@ -285,6 +285,14 @@ public sealed class AsusMouseDevice : IMouseDevice
             }).ToList();
         }
     }
+
+    /// <summary>
+    /// The Spatha X takes brightness as 0-100 but only shows 4 lit steps (25/50/75/100),
+    /// the same as the original Spatha. Both mice therefore use levels 0-4 (0 = off);
+    /// a value set elsewhere (e.g. 30) shows as the nearest level.
+    /// </summary>
+    private static int LevelFromPercent(int value, int max) =>
+        max <= 0 ? 0 : Math.Clamp((int)Math.Round(value * 4.0 / max), 0, 4);
 
     public void SetLighting(int zone, LightState s)
     {
@@ -295,7 +303,7 @@ public sealed class AsusMouseDevice : IMouseDevice
         {
             LightingMode = modes[Math.Clamp(s.Effect, 0, modes.Length - 1)].Mode,
             RGBColor = s.Colors.Length > 0 ? s.Colors[0] : current.RGBColor,
-            Brightness = s.Brightness,
+            Brightness = Math.Clamp(s.Brightness, 0, 4) * Mouse.MaxBrightness() / 4,
             RandomColor = s.Random,
             AnimationSpeed = s.Speed switch { 0 => AnimationSpeed.Slow, 2 => AnimationSpeed.Fast, _ => AnimationSpeed.Medium },
             AnimationDirection = current.AnimationDirection,
