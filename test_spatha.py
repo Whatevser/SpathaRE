@@ -207,3 +207,13 @@ def test_reset_profile(mouse):
     assert bytes(fake.mem[0x400:0x4CD]) == spatha.FACTORY_PROFILE
     assert len(spatha.FACTORY_PROFILE) == 0xCD
     assert bytes(fake.mem[0x100:0x1CD]) != spatha.FACTORY_PROFILE   # other profiles untouched
+
+
+def test_default_profile_needs_flag(mouse):
+    fake, spatha = mouse
+    before = bytes(fake.mem[0x600:0x700])
+    with pytest.raises(SystemExit):
+        run(spatha, "--no-backup", "dpi", "1", "800", "-p", "6")
+    assert bytes(fake.mem[0x600:0x700]) == before
+    run(spatha, "--no-backup", "--allow-default", "dpi", "1", "800", "-p", "6")
+    assert fake.mem[0x604] == 15

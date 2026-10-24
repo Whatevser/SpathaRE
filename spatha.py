@@ -35,6 +35,7 @@ SUB_WRITE = 0xC1       # reply to DE
 REG_PROFILE = 0x19     # (profile_count << 4) | active_profile
 PROFILE_COUNT = 6
 PROFILE_SIZE = 0x100
+DEFAULT_PROFILE = 5     # profile 6, named "Default"; Armoury treats it as read-only
 MEM_END = 0x100 + PROFILE_COUNT * PROFILE_SIZE   # 0x700
 
 # Offsets inside one profile block (block for profile p starts at 0x100*(p+1))
@@ -473,6 +474,9 @@ def ensure_backup(sp, args):
 
 def write_profile_bytes(sp, args, p, changes):
     """changes: {offset: value}. Writes only bytes that differ, then commits."""
+    if p == DEFAULT_PROFILE and not getattr(args, "allow_default", False):
+        raise SpathaError("profile 6 is the device's 'Default' profile, which Armoury never "
+                          "writes; pass --allow-default to change it anyway")
     ensure_backup(sp, args)
     base = profile_base(p)
     offs = sorted(changes)
@@ -758,6 +762,8 @@ def build_parser():
                     help="automatic backup taken before the first write (default: %(default)s)")
     ap.add_argument("--no-backup", action="store_true")
     ap.add_argument("--no-commit", action="store_true", help="don't send C4 00 after writing")
+    ap.add_argument("--allow-default", action="store_true",
+                    help="allow writing profile 6 ('Default'), which Armoury leaves alone")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     def add(name, fn, help_, profile=False):

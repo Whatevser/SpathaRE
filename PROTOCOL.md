@@ -55,7 +55,7 @@ While in driver mode the mouse sends **input report 3**: `03 A2 p` = profile cha
 0x0100 + 0x100*p  profile p (p = 0..5), 0xD1 bytes used                                 [C]
 ```
 
-Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is named "Default" on the device. Every per-register path accepts p ≤ 5.
+Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is named "Default" on the device. Armoury's UI locks it, but the firmware accepts writes to it (confirmed on hardware); spatha.py requires `--allow-default` for it. Every per-register path accepts p ≤ 5.
 
 ### Profile block (offsets from `0x100*(p+1)`)
 
@@ -65,6 +65,7 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is nam
 | 0x01 | angle snapping | `0x80\|level` = on; Armoury writes `0x06` for off | [C] |
 | 0x02 | lift-off / calibration height | `135 + 3*height` | [C] |
 | 0x03 | ? (LoadSettings reads its low nibble) | | |
+| (LED) | DPI-button LED | lit while DPI stage 2 is active (observed on hardware) | |
 | 0x04/0x05 | DPI stage 1 X / Y | raw; **DPI = (raw+1)×50** (ADNS-9800: 50 CPI steps, 0xA4 = 8200). Armoury default 31 = 1600 | [C], confirmed on hardware |
 | 0x06/0x07 | DPI stage 2 X / Y | same as above (default 7 = 400) | |
 | 0x0C | acceleration / deceleration | low nibble accel, high nibble decel, 0–10 each | [C] |
