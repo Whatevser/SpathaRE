@@ -31,6 +31,8 @@ class FakeSpatha:
         self.reply = b""
         self.sent = []
         self.busy_once = True
+        self.battery_raw = 90
+        self.charging = False
 
     # hid.device API
     def open_path(self, path):
@@ -55,6 +57,8 @@ class FakeSpatha:
         elif cmd == 0xC4 and buf[2] == 0x08:
             self.reply = bytes([0xB0, 0x5A, 0xA5, 90]) if buf[3] == 1 else \
                 bytes([0xB0, 0x55, 0xAA, 40 if buf[3] == 0 else 80])
+        elif cmd == 0xC4 and buf[2] == 0x11:
+            self.reply = bytes([0xB0, 0xC4, 0, 0, self.battery_raw, 0, int(self.charging)])
         elif cmd == 0xC4 and buf[2:5] == bytes([6, 2, 2]):
             self.reply = bytes([0xB0, 0xC5, 0])
         elif cmd == 0xC4:
@@ -221,3 +225,14 @@ def test_default_profile_needs_flag(mouse):
     assert bytes(fake.mem[0x600:0x700]) == before
     run(spatha, "--no-backup", "--allow-default", "dpi", "1", "800", "-p", "6")
     assert fake.mem[0x604] == 15
+
+
+def test_battery(mouse, capsys):
+    fake, spatha = mouse
+    run(spatha, "info")
+    assert "battery        : 90 %" in capsys.readouterr().out
+    fake.charging, fake.battery_raw = True, 75
+    run(spatha, "info")
+    assert "battery        : 65 %  (charging)   (raw 75" in capsys.readouterr().out
+    assert [spatha.battery_percent(r, True) for r in (95, 85, 70, 66, 60, 55, 45, 30)] == \
+        [95, 80, 60, 51, 50, 45, 40, 30]

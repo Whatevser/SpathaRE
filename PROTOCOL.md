@@ -39,13 +39,13 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 | `C4 08 02` | `B0 55 AA n` | mouse firmware version (80 = v1.80); only answers through the receiver, constant while charging | confirmed on hardware |
 | `C4 08 01` | `B0 5A A5 n` | unknown; constant `AA` | hardware |
 
-**Battery level: Armoury doesn't read one for the Spatha.** In `ArmouryMsSDK.dll`, `GetPowerInfo` explicitly skips PIDs 6172/6180 (0x181C/0x1824). For the Spatha, a background thread (`ThreadProc_SPATHA`) only reports two flags, *mouse is alive* and *charging*. Those most likely correspond to `C4 08 02` answering at all (alive) and answering in the `3C C3` form (charging, flagged `0x8000` in IfSpatha) [I].
+**Battery:** `ArmouryMsSDK.dll`'s generic `GetPowerInfo` skips the Spatha PIDs (6172/6180); the Spatha goes through `AacMouseExternHal_x86.dll` (class `MyAacSpatha_WirelessDevice`), which sends Armoury command `0x6F` to IfSpatha.dll. That becomes `C4 11 00` on the wire (table above).
 | `C4 06 02 01/00` | – | enter/leave Aura Sync direct mode (IfSpatha sends `FF` to enable "driver mode") | [C] |
 | `C4 03 05 01 <frame>` / `C4 03 05 00 00` → `B0 C5 frame` | | set/get Aura Sync frame | [C] |
 | `C4 0F 00 <off> <v>` | – | live (non-saved) write of a profile register, used for LED preview | [C] |
 | `C4 03 04 01 00` | – | issued after an LED preview | [C] |
 | `C4 04 00/01` | – | start/stop surface calibration | [I] |
-| `C4 11 00` | `B0 C4 …` | unknown query | [C] |
+| `C4 11 00` | `B0 C4 ?? ?? <level> ?? <charging>` | **battery**: byte 4 = level %, byte 6 = 1 while charging. Armoury corrects charging readings < 90 (80–89 −5, 70–79 −10, 65–69 −15, 60→50, 55/50→45, 45→40) | [C] (IfSpatha + AacMouseExternHal) |
 | `C4 14 00 02/01 01/00` → `B0 F0 …` | | "KData" mode: sensor data dump (8×16-bit) | [C] |
 | report `10 00 F0 00 + 9 bytes` | – | LED preview, 3×RGB (newer HID library) | [C] |
 

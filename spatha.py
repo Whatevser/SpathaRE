@@ -259,6 +259,19 @@ class Spatha:
             time.sleep(0.03)
         return None
 
+    def battery(self):
+        """C4 11 00 -> B0 C4 .. .. <level> .. <charging>. Returns
+        (shown_percent, raw_level, charging) the way Armoury displays it."""
+        self._send([CMD_CTRL, 0x11, 0x00, 0, 0, 0, 0, 0])
+        time.sleep(0.03)
+        for _ in range(15):
+            r = self._recv()
+            if len(r) >= 7 and r[0] == ACK and r[1] == CMD_CTRL:
+                raw, charging = r[4], r[6] == 1
+                return battery_percent(raw, charging), raw, charging
+            time.sleep(0.03)
+        return None
+
     def mode_state(self):
         """C4 06 02 02 -> B0 C5 n (Armoury command 0x6E)."""
         self._send([CMD_CTRL, 0x06, 0x02, 0x02, 0, 0, 0, 0])
@@ -269,6 +282,19 @@ class Spatha:
                 return r[2]
             time.sleep(0.03)
         return None
+
+
+def battery_percent(raw, charging):
+    """Armoury's correction (IfSpatha.dll) for readings taken while charging."""
+    if not charging or raw >= 90:
+        return raw
+    if raw >= 80:
+        return raw - 5
+    if raw >= 70:
+        return raw - 10
+    if raw >= 65:
+        return raw - 15
+    return {60: 50, 55: 45, 50: 45, 45: 40}.get(raw, raw)
 
 
 def profile_base(p):
@@ -598,6 +624,12 @@ def cmd_info(args):
     sp = open_device(args)
     reg = sp.profile_reg()
     print(f"active profile : {(reg & 15) + 1} of {reg >> 4}   (reg 0x19 = 0x{reg:02X})")
+    b = sp.battery()
+    if b is None:
+        print("battery        : no reply")
+    else:
+        pct, raw, charging = b
+        print(f"battery        : {pct} %{'  (charging)' if charging else ''}   (raw {raw}, C4 11 00)")
     labels = {0: "firmware of the device you're connected to (40 = v1.40)",
               2: "mouse firmware via receiver; 3C C3 form = charging (inferred)",
               1: "unknown, constant"}
