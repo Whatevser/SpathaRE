@@ -1,6 +1,22 @@
-__pycache__/
-.pytest_cache/
-*.bin
+# .NET build output
 bin/
 obj/
+out/
+dist/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+
+# Python
+__pycache__/
+.pytest_cache/
+
+# Mouse memory dumps and backups from spatha.py (spatha_backup.bin, dumps, identify state):
+# personal, and not something to publish
+*.bin
+
+# Locally built packages; releases are attached on GitHub instead
 *.zip
+*.exe
