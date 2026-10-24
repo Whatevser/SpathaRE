@@ -856,7 +856,7 @@ def cmd_listen(args):
         return f"{time.time() - start:8.2f}s"
 
     def rescan():
-        for info in candidates(show_all=True):
+        for info in candidates():         # Spatha mouse and dock only
             if info.get("usage_page") == 1 and info.get("usage") in (2, 6):
                 continue                  # Windows owns mouse/keyboard input
             path = info["path"]
