@@ -352,6 +352,20 @@ def open_device(args):
         dev = hid.device()
         dev.open_path(args.path.encode() if isinstance(args.path, str) else args.path)
         return Spatha(dev, args.report_id, args.report_len, verbose=args.verbose)
+    if getattr(args, "no_probe", False):
+        # Skip the memory-read probe (which needs the mouse awake) and take
+        # the first Spatha collection that opens, e.g. to talk to the dock
+        # while the mouse is switched off.
+        for info in candidates():         # keyboard collection first
+            dev = hid.device()
+            try:
+                dev.open_path(info["path"])
+            except (OSError, IOError):
+                continue
+            if args.verbose:
+                print(f"using {info['path']!r} rid=0x{args.report_id:02X} (no probe)", file=sys.stderr)
+            return Spatha(dev, args.report_id, args.report_len, verbose=args.verbose)
+        sys.exit("No Spatha collection could be opened.")
     for info in candidates():
         sp = probe(info, args.verbose)
         if sp:
@@ -914,6 +928,8 @@ def build_parser():
     ap.add_argument("--path", help="HID path to use instead of auto-detection")
     ap.add_argument("--report-id", type=parse_int, default=0x0C)
     ap.add_argument("--report-len", type=int, default=10)
+    ap.add_argument("--no-probe", action="store_true",
+                    help="use the first Spatha collection without checking the mouse answers (dock with mouse off)")
     ap.add_argument("-v", "--verbose", action="store_true", help="print every packet")
     ap.add_argument("--backup", default="spatha_backup.bin",
                     help="automatic backup taken before the first write (default: %(default)s)")
