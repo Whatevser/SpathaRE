@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-spatha.py - configure the original ASUS ROG Spatha (non-X, USB 0B05:181C)
+spatha.py - configure the original ASUS ROG Spatha (non-X; cable 0B05:181C, dock 0B05:1824)
 without Armoury Crate.
 
 The protocol was reverse engineered from Armoury Crate's Spatha plugins
