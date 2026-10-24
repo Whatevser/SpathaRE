@@ -845,38 +845,62 @@ def cmd_led_test(args):
 
 def cmd_listen(args):
     """Print every report the mouse/dock pushes on its vendor collections
-    (03 A2 = profile change, 03 A3 = DPI change, anything else is new)."""
+    (03 A2 = profile change, 03 A3 = DPI change, anything else is new).
+    Survives unplugging: lost collections are dropped and reopened when
+    they come back."""
     hid = _hid()
-    devs = []
-    for info in candidates(show_all=True):
-        if info.get("usage_page") == 1 and info.get("usage") in (2, 6):
-            continue                      # Windows owns mouse/keyboard input
-        dev = hid.device()
-        try:
-            dev.open_path(info["path"])
-        except (OSError, IOError):
-            continue
-        dev.set_nonblocking(True)
-        name = f"{info['product_id']:04X} if{info.get('interface_number')} " \
-               f"up{info.get('usage_page', 0):04X}:{info.get('usage', 0):02X}"
-        devs.append((name, dev))
-    if not devs:
-        sys.exit("no collection could be opened for listening")
-    for name, _ in devs:
-        print("listening on", name)
-    print("Ctrl+C to stop.")
+    devs = {}                             # path -> (name, dev)
     start = time.time()
+
+    def stamp():
+        return f"{time.time() - start:8.2f}s"
+
+    def rescan():
+        for info in candidates(show_all=True):
+            if info.get("usage_page") == 1 and info.get("usage") in (2, 6):
+                continue                  # Windows owns mouse/keyboard input
+            path = info["path"]
+            if path in devs:
+                continue
+            dev = hid.device()
+            try:
+                dev.open_path(path)
+            except (OSError, IOError):
+                continue
+            dev.set_nonblocking(True)
+            name = f"{info['product_id']:04X} if{info.get('interface_number')} " \
+                   f"up{info.get('usage_page', 0):04X}:{info.get('usage', 0):02X}"
+            devs[path] = (name, dev)
+            print(f"{stamp()}  -- listening on {name}")
+
+    rescan()
+    if not devs:
+        print("nothing to listen on yet, waiting for the mouse or dock...")
+    print("Ctrl+C to stop.")
+    last_scan = time.time()
     try:
         while True:
-            for name, dev in devs:
-                data = dev.read(64)
+            for path, (name, dev) in list(devs.items()):
+                try:
+                    data = dev.read(64)
+                except (OSError, IOError, ValueError):
+                    print(f"{stamp()}  -- lost {name} (unplugged?)")
+                    try:
+                        dev.close()
+                    except Exception:
+                        pass
+                    del devs[path]
+                    continue
                 if data:
-                    print(f"{time.time() - start:8.2f}s  {name}  {bytes(data).hex(' ')}")
+                    print(f"{stamp()}  {name}  {bytes(data).hex(' ')}")
+            if time.time() - last_scan > 1.0:
+                rescan()
+                last_scan = time.time()
             time.sleep(0.005)
     except KeyboardInterrupt:
         pass
     finally:
-        for _, dev in devs:
+        for _, dev in devs.values():
             dev.close()
 
 
