@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-spatha.py - configure the original ASUS ROG Spatha (non-X; cable 0B05:181C, dock 0B05:1824)
+spatha.py - configure the original ASUS ROG Spatha (L701, non-X; cable 0B05:181C, dock 0B05:1824)
 without Armoury Crate.
 
 The protocol was reverse engineered from Armoury Crate's Spatha plugins
@@ -928,7 +928,7 @@ def cmd_commit(args):
 
 
 def build_parser():
-    ap = argparse.ArgumentParser(description="ASUS ROG Spatha (original) configuration tool")
+    ap = argparse.ArgumentParser(description="ASUS ROG Spatha (original, L701) configuration tool")
     ap.add_argument("--path", help="HID path to use instead of auto-detection")
     ap.add_argument("--report-id", type=parse_int, default=0x0C)
     ap.add_argument("--report-len", type=int, default=10)

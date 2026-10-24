@@ -1,6 +1,6 @@
 # spatha.py
 
-A command-line tool for the **original ASUS ROG Spatha** (2016, not the
+A command-line tool for the **original ASUS ROG Spatha** (model L701, 2016, not the
 Spatha X). It's the tool the protocol was decoded and tested with. For everyday
 use, the [SpathaRE app](../../README.md) is easier; this one is for scripting,
 backups and poking at the protocol. The protocol itself is written up in

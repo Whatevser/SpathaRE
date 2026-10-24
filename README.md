@@ -3,7 +3,7 @@
 <img src="SpathaRE/Assets/SpathaRE.png" width="64" align="right">
 
 A lightweight Windows tray app that configures the **original 2016 ASUS ROG
-Spatha** without Armoury Crate. As far as I know it's the first tool that can.
+Spatha (model L701)** without Armoury Crate. As far as I know it's the first tool that can.
 The mouse's USB protocol was reverse engineered from Armoury Crate's DLLs and
 checked on a real mouse; the write-up is in [PROTOCOL.md](PROTOCOL.md).
 
@@ -13,7 +13,7 @@ talk to it, and shares the same settings window.
 
 | Mouse | USB IDs | Protocol |
 |---|---|---|
-| ROG Spatha (original, 2016) | wired `0B05:181C`, dock `0B05:1824` | own, reverse engineered ([PROTOCOL.md](PROTOCOL.md)) |
+| ROG Spatha (original, 2016, model L701) | wired `0B05:181C`, dock `0B05:1824` | own, reverse engineered ([PROTOCOL.md](PROTOCOL.md)) |
 | ROG Spatha X | wireless `0B05:1979`, wired `0B05:1977` | G-Helper's AsusMouse (vendored) |
 
 ![Buttons page: the button map with callouts, and the Combos list with the Edit combo box](docs/screenshots/buttons-spatha-x.webp)

@@ -1,4 +1,4 @@
-# ASUS ROG Spatha (original, non-X) – USB configuration protocol
+# ASUS ROG Spatha (original, non-X, model L701) – USB configuration protocol
 
 Reverse engineered from the Armoury Crate Spatha plugin DLLs, then checked on a real
 Spatha, wired and through its dock:
