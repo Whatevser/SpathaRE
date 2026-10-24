@@ -1,14 +1,23 @@
 # Builds SpathaRE.exe (x64 and ARM64) on every push and pull request.
-# Download it from the run's "Artifacts" section. Pushing a tag like v1.2.0
-# also publishes a GitHub release with both zips attached.
+# Download it from the run's "Artifacts" section.
+# Releases: publishing a GitHub release (or pushing a tag like 1.2.0 / v1.2.0)
+# builds and attaches both zips. For a release that already exists, run this
+# workflow by hand (Actions -> Build -> Run workflow) and enter its tag.
 name: Build
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['v*', '[0-9]*']
+  release:
+    types: [published]
   pull_request:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Attach the zips to this existing release tag (e.g. 1.0.0); leave empty to just build'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -16,8 +25,13 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      # The release tag, if this run makes or updates a release.
+      RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -51,15 +65,16 @@ jobs:
           path: out/SpathaRE-win-arm64
 
       - name: Zip for release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE_TAG != ''
         shell: pwsh
         run: |
           Compress-Archive out/SpathaRE-win-x64 SpathaRE-win-x64.zip
           Compress-Archive out/SpathaRE-win-arm64 SpathaRE-win-arm64.zip
 
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE_TAG != ''
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: |
             SpathaRE-win-x64.zip
             SpathaRE-win-arm64.zip
