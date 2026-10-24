@@ -25,7 +25,8 @@ python spatha.py dpi 2 800 -p 2       # profile 2
 python spatha.py polling 1000
 python spatha.py polling 500 --wireless
 python spatha.py led all static -c 00ff80 -b 4 -w 2
-python spatha.py led 1 breathing -c ff0000 -c 0000ff
+python spatha.py led wheel breathing -c ff0000 -c 0000ff
+python spatha.py led logo battery
 python spatha.py button 5 key:backspace
 python spatha.py button 6 key:ctrl+shift+esc
 python spatha.py button 7 media:volup
@@ -56,5 +57,4 @@ python spatha.py raw C4 08 00         # send any command and print the reply
 
 1. ~~DPI formula~~ (confirmed: `(raw+1)*50`).
 2. Which physical button each slot 0–13 belongs to. Run `python spatha.py identify`, press each button, then press Enter. Your bindings are restored afterwards.
-3. Which LED zone is 1, 2 and 3.
 4. What `info` reports for battery and status, both wired and wireless.

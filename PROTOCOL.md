@@ -72,9 +72,9 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is nam
 | 0x04/0x05 | DPI stage 1 X / Y | raw; **DPI = (raw+1)×50** (ADNS-9800: 50 CPI steps, 0xA4 = 8200). Armoury default 31 = 1600 | [C], confirmed on hardware |
 | 0x06/0x07 | DPI stage 2 X / Y | same as above (default 7 = 400) | |
 | 0x0C | acceleration / deceleration | low nibble accel, high nibble decel, 0–10 each | [C] |
-| 0x11–0x36 | LED zone 3 | see below | [C] |
-| 0x37–0x5C | LED zone 2 | | [C] |
-| 0x5D–0x82 | LED zone 1 | | [C] |
+| 0x11–0x36 | LED zone 3: base / side-button area ("Base" in Armoury's Aura layout) | see below | confirmed on hardware |
+| 0x37–0x5C | LED zone 2: scroll wheel | | confirmed on hardware |
+| 0x5D–0x82 | LED zone 1: ROG logo | | confirmed on hardware |
 | 0x83–0xC8 | 14 button slots × 5 bytes | see below | [C] |
 | 0xC9 | button response | `16 + 8*index` (index 0–6) | [C] |
 | 0xCA | sleep timer | minutes 1/2/3/5/10, `FF` = never | [C] values, [I] meaning |
@@ -86,13 +86,14 @@ Armoury's bulk save writes only 0x100–0x5FF (profiles 1–5); profile 6 is nam
 #### LED zone (38 bytes)
 
 ```
-+0  effect      1=static(1 colour) 10=breathing(2) 5=colour cycle(12) 12=reactive(1)
-                6, 11, 14 = Armoury effects 3/5/6 (no colours, names unknown)
++0  effect      1=static(1 colour) 10=breathing(2) 5=colour cycle(12) 6=random
+                12=reactive(1) 11=battery (pulses green/blue/red by charge level)
+                14 = accepted by Armoury's converter but not offered in its UI
 +1  brightness  low nibble = wired, high nibble = wireless; steps 0,4,7,11,14 (= Armoury 0..4)
 +2  RGB × 12
 ```
 
-Armoury's default (from the SYNC DLL) for every zone is `0A 7E FF 00 00 …`: breathing, wired brightness 4, wireless brightness 2, red. Armoury's Aura layout file (`ROG SPATHA.csv`) names the three LEDs **Base**, **Wheel** and **Logo**. Which of zones 1/2/3 is which still needs checking on hardware.
+Armoury's default (from the SYNC DLL) for every zone is `0A 7E FF 00 00 …`: breathing, wired brightness 4, wireless brightness 2, red. Armoury's Aura layout file (`ROG SPATHA.csv`) names the three LEDs **Base**, **Wheel** and **Logo**: zone 1 = logo, zone 2 = wheel, zone 3 = base (confirmed on hardware). Armoury's UI applies one effect to all zones, or per-zone settings via a separate entry.
 
 #### Button slot (5 bytes)
 
@@ -132,4 +133,4 @@ Keys are stored as raw HID usages, so any key can be bound even where Armoury's 
 
 * Macros (`SetMacro`). The code converts Armoury macro events and stores them through a separate routine (`sub_10006dc0`), not decoded.
 * RF dongle PID/usage, and whether the dongle wants report ID 0 / 9 bytes.
-* Names of LED effects 3/5/6 and of the special button functions.
+* What raw effect 14 does (not offered in Armoury's UI).

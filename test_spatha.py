@@ -236,3 +236,14 @@ def test_battery(mouse, capsys):
     assert "battery        : 65 %  (charging)   (raw 75" in capsys.readouterr().out
     assert [spatha.battery_percent(r, True) for r in (95, 85, 70, 66, 60, 55, 45, 30)] == \
         [95, 80, 60, 51, 50, 45, 40, 30]
+
+
+def test_led_zone_and_effect_names(mouse, capsys):
+    fake, spatha = mouse
+    run(spatha, "--no-backup", "led", "wheel", "battery")
+    assert fake.mem[0x100 + 0x37] == 11 and fake.mem[0x100 + 0x5D] == 10   # only the wheel changed
+    run(spatha, "--no-backup", "led", "logo", "effect3")                    # old alias still works
+    assert fake.mem[0x100 + 0x5D] == 6
+    run(spatha, "show")
+    out = capsys.readouterr().out
+    assert "LED 1 logo" in out and "random" in out and "LED 2 wheel" in out and "battery" in out

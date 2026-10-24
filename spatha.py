@@ -45,6 +45,8 @@ OFF_LIFT_OFF = 0x02
 OFF_DPI = {1: (0x04, 0x05), 2: (0x06, 0x07)}
 OFF_ACCEL = 0x0C        # low nibble accel, high nibble decel
 LED_ZONES = {1: 0x5D, 2: 0x37, 3: 0x11}   # effect byte; +1 brightness; +2.. colors
+LED_ZONE_NAMES = {1: "logo", 2: "wheel", 3: "base"}      # confirmed on hardware
+LED_ZONE_BY_NAME = {v: k for k, v in LED_ZONE_NAMES.items()}
 LED_ZONE_SIZE = 38      # effect, brightness, 12 x RGB
 OFF_BUTTONS = 0x83      # 14 slots x 5 bytes
 BUTTON_SLOTS = 14
@@ -81,12 +83,13 @@ LED_EFFECTS = {
     "static":      (1, 1),
     "breathing":   (10, 2),
     "colorcycle":  (5, 12),
-    "effect3":     (6, 0),   # name unknown (Armoury effect #3, no colors)
+    "random":      (6, 0),
     "reactive":    (12, 1),
-    "effect5":     (11, 0),  # name unknown (Armoury effect #5, no colors)
-    "effect6":     (14, 0),  # name unknown (Armoury effect #6, no colors)
+    "battery":     (11, 0),  # pulses green / blue / red by battery level
+    "effect6":     (14, 0),  # accepted by the converter, not offered in Armoury's UI
 }
 LED_EFFECT_NAMES = {raw: name for name, (raw, _) in LED_EFFECTS.items()}
+LED_EFFECT_ALIASES = {"effect3": "random", "effect5": "battery"}
 LEVEL_STEPS = [0, 4, 7, 11, 14]          # brightness index 0..4 -> nibble
 
 SLEEP_MINUTES = [1, 2, 3, 5, 10]
@@ -463,7 +466,7 @@ def describe_profile(p, blk):
         name = LED_EFFECT_NAMES.get(eff, f"raw 0x{eff:02X}")
         ncol = LED_EFFECTS.get(name, (0, 1))[1]
         cols = [blk[off + 2 + 3 * i: off + 5 + 3 * i].hex().upper() for i in range(max(ncol, 1))]
-        lines.append(f"  LED zone {z}     {name:<10} bright wired {nibble_index(lvl & 15)}, "
+        lines.append(f"  LED {z} {LED_ZONE_NAMES[z]:<5}    {name:<10} bright wired {nibble_index(lvl & 15)}, "
                      f"wireless {nibble_index(lvl >> 4)}  colors {' '.join(cols)}")
     for i in range(BUTTON_SLOTS):
         off = OFF_BUTTONS + 5 * i
@@ -716,13 +719,14 @@ def cmd_polling(args):
 def cmd_led(args):
     sp = open_device(args)
     p = resolve_profile(sp, args)
-    raw, ncol = LED_EFFECTS[args.effect]
+    raw, ncol = LED_EFFECTS[LED_EFFECT_ALIASES.get(args.effect, args.effect)]
     colors = [parse_color(c) for c in (args.color or [])]
     if ncol and not colors:
         colors = [[0xFF, 0, 0]]
     while ncol and len(colors) < ncol:
         colors.append(colors[-1])
-    zones = sorted(LED_ZONES) if args.zone == "all" else [int(args.zone)]
+    zones = sorted(LED_ZONES) if args.zone == "all" else \
+        [LED_ZONE_BY_NAME.get(args.zone) or int(args.zone)]
     changes = {}
     for z in zones:
         off = LED_ZONES[z]
@@ -846,8 +850,8 @@ def build_parser():
     s.add_argument("hz", type=int, choices=sorted(POLL_CODES))
     s.add_argument("--wireless", action="store_true", help="set the wireless rate instead")
     s = add("led", cmd_led, "set lighting", profile=True)
-    s.add_argument("zone", choices=["all", "1", "2", "3"])
-    s.add_argument("effect", choices=list(LED_EFFECTS))
+    s.add_argument("zone", choices=["all", "logo", "wheel", "base", "1", "2", "3"])
+    s.add_argument("effect", choices=list(LED_EFFECTS) + list(LED_EFFECT_ALIASES))
     s.add_argument("--color", "-c", action="append", help="RRGGBB, repeat for more colors")
     s.add_argument("--brightness", "-b", type=int, choices=range(5), help="wired brightness 0-4")
     s.add_argument("--wireless-brightness", "-w", type=int, choices=range(5))
