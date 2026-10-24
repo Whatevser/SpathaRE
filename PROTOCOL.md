@@ -15,7 +15,7 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 
 ## 1. Transport
 
-* USB `0B05:181C` (wired, from g-helper issue #5892). `IfSpatha.dll` doesn't check the PID. It matches HID devices whose **bcdDevice** is `0x4200`, `0x4201`, `0xD000` or `0xD002`. `0x42xx` is probably the mouse and `0xD0xx` the RF dongle **[I]**.
+* USB `0B05:181C` (wired) and `0B05:1824` (receiver/dock); both PIDs are listed for "Spatha" in Armoury's MouseSDK `config.ini`. `IfSpatha.dll` doesn't check the PID. It matches HID devices whose **bcdDevice** is `0x4200`, `0x4201`, `0xD000` or `0xD002`. `0x42xx` is probably the mouse and `0xD0xx` the RF dongle **[I]**.
 * All traffic uses **HID feature reports** (`HidD_SetFeature` / `HidD_GetFeature`). No interrupt endpoints are involved. **[C]**
 * Normal mode: the HID **keyboard** collection (`GUID_DEVINTERFACE_KEYBOARD`), **report ID `0x0C`**, **10-byte** report (ID + 9). **[C]**
 * Alternate mode, chosen by a flag in Armoury: the mouse collection whose `FeatureReportByteLength == 9`, report ID `0x00`, 9 bytes. **[C]**
@@ -39,7 +39,7 @@ Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armou
 | `C4 08 02` | `B0 55 AA n` | mouse firmware version (80 = v1.80); only answers through the receiver, constant while charging | confirmed on hardware |
 | `C4 08 01` | `B0 5A A5 n` | unknown; constant `AA` | hardware |
 
-Battery level is **not** read by any of the decoded DLLs; Armoury gets it from another layer (MouseSDK / AacMouseSetup).
+**Battery level: Armoury doesn't read one for the Spatha.** In `ArmouryMsSDK.dll`, `GetPowerInfo` explicitly skips PIDs 6172/6180 (0x181C/0x1824). For the Spatha, a background thread (`ThreadProc_SPATHA`) only reports two flags, *mouse is alive* and *charging*. Those most likely correspond to `C4 08 02` answering at all (alive) and answering in the `3C C3` form (charging, flagged `0x8000` in IfSpatha) [I].
 | `C4 06 02 01/00` | – | enter/leave Aura Sync direct mode (IfSpatha sends `FF` to enable "driver mode") | [C] |
 | `C4 03 05 01 <frame>` / `C4 03 05 00 00` → `B0 C5 frame` | | set/get Aura Sync frame | [C] |
 | `C4 0F 00 <off> <v>` | – | live (non-saved) write of a profile register, used for LED preview | [C] |
