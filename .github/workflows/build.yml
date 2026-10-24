@@ -1,0 +1,66 @@
+# Builds SpathaRE.exe (x64 and ARM64) on every push and pull request.
+# Download it from the run's "Artifacts" section. Pushing a tag like v1.2.0
+# also publishes a GitHub release with both zips attached.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Tests
+        run: dotnet run --project SpathaRE.Tests -c Release
+
+      - name: Publish x64
+        run: >
+          dotnet publish SpathaRE -c Release -r win-x64 -p:Platform=x64
+          -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none
+          -o out/SpathaRE-win-x64
+
+      - name: Publish ARM64
+        run: >
+          dotnet publish SpathaRE -c Release -r win-arm64 -p:Platform=ARM64
+          -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none
+          -o out/SpathaRE-win-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpathaRE-win-x64
+          path: out/SpathaRE-win-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpathaRE-win-arm64
+          path: out/SpathaRE-win-arm64
+
+      - name: Zip for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          Compress-Archive out/SpathaRE-win-x64 SpathaRE-win-x64.zip
+          Compress-Archive out/SpathaRE-win-arm64 SpathaRE-win-arm64.zip
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: |
+            SpathaRE-win-x64.zip
+            SpathaRE-win-arm64.zip
+          generate_release_notes: true
