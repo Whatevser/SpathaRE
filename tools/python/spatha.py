@@ -843,6 +843,43 @@ def cmd_led_test(args):
         sp.ctrl(0x06, 0x02, 0x00, 0x00)
 
 
+def cmd_listen(args):
+    """Print every report the mouse/dock pushes on its vendor collections
+    (03 A2 = profile change, 03 A3 = DPI change, anything else is new)."""
+    hid = _hid()
+    devs = []
+    for info in candidates(show_all=True):
+        if info.get("usage_page") == 1 and info.get("usage") in (2, 6):
+            continue                      # Windows owns mouse/keyboard input
+        dev = hid.device()
+        try:
+            dev.open_path(info["path"])
+        except (OSError, IOError):
+            continue
+        dev.set_nonblocking(True)
+        name = f"{info['product_id']:04X} if{info.get('interface_number')} " \
+               f"up{info.get('usage_page', 0):04X}:{info.get('usage', 0):02X}"
+        devs.append((name, dev))
+    if not devs:
+        sys.exit("no collection could be opened for listening")
+    for name, _ in devs:
+        print("listening on", name)
+    print("Ctrl+C to stop.")
+    start = time.time()
+    try:
+        while True:
+            for name, dev in devs:
+                data = dev.read(64)
+                if data:
+                    print(f"{time.time() - start:8.2f}s  {name}  {bytes(data).hex(' ')}")
+            time.sleep(0.005)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for _, dev in devs:
+            dev.close()
+
+
 def cmd_commit(args):
     open_device(args).commit()
     print("sent C4 00 (EnableSetting)")
@@ -917,6 +954,7 @@ def build_parser():
     s = add("led-test", cmd_led_test, "drive the LEDs directly through report 0x10 (Aura Sync preview)")
     s.add_argument("--color", "-c", default="ffffff", help="RRGGBB (default white)")
     s.add_argument("--seconds", type=float, default=8)
+    add("listen", cmd_listen, "print reports the mouse and dock push (Ctrl+C to stop)")
     add("commit", cmd_commit, "send EnableSetting (C4 00)")
     return ap
 
