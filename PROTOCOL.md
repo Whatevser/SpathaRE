@@ -43,7 +43,7 @@ their look is unverified.
 
 `lo hi` = 16-bit little-endian address.
 
-| Request (after RID) | Reply | Meaning | |
+| Request (after RID) | Reply | Meaning | Source |
 |---|---|---|---|
 | `DF lo hi 00 00` | `B0 C0 lo hi v` | read 1 byte | [C] |
 | `DD lo hi` | `B0 C0 lo hi d0 d1 d2 d3` | read 4 bytes | [C] |
@@ -54,7 +54,6 @@ their look is unverified.
 | `C4 08 00` | `B0 55 AA n` or `B0 3C C3 n` | firmware version (minor) of the device you're connected to: receiver 40 = v1.40 | hardware, matches the version Armoury shows |
 | `C4 08 02` | `B0 55 AA n` | mouse firmware version (80 = v1.80); only answers through the receiver, constant while charging | hardware, matches the version Armoury shows |
 | `C4 08 01` | `B0 5A A5 n` | unknown; constant `AA` | hardware |
-
 | `C4 06 02 01/00` | – | enter/leave Aura Sync direct mode (IfSpatha sends `FF` to enable "driver mode") | [C] |
 | `C4 03 05 01 <frame>` / `C4 03 05 00 00` → `B0 C5 frame` | | set/get Aura Sync frame | [C] |
 | `C4 0F 00 <off> <v>` | – | live (non-saved) write of a profile register, used for LED preview | [C] |
