@@ -42,6 +42,10 @@ public partial class App : Application
         MouseManager.SelectionChanged += (_, _) => Dispatcher.BeginInvoke(RefreshTray);
         MouseManager.BatteryChanged += (_, _) => Dispatcher.BeginInvoke(RefreshTray);
         MouseManager.ProfileChanged += OnProfileChanged;
+        // The original Spatha lists and exports the same F13-F24 combos as the Spatha X.
+        SpathaRE.Core.Spatha.SpathaDevice.ComboLabel = u => SpathaRE.Core.Devices.AsusMouseDevice.Label(u);
+        SpathaRE.Core.Spatha.SpathaDevice.ComboKeys = u => SpathaRE.Core.Devices.AsusMouseDevice.CarrierKeys(u);
+        SpathaRE.Core.Spatha.SpathaDevice.AllocateCombo = SpathaRE.Core.Devices.AsusMouseDevice.AllocateCarrier;
         MouseManager.Start();
 
         _hotkeys = new HotkeyManager();

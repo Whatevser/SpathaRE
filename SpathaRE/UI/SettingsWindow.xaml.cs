@@ -27,10 +27,6 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, DispatcherTimer> _debounce = new();
     private readonly DispatcherTimer _statusFade = new() { Interval = TimeSpan.FromSeconds(4) };
 
-    // shortcut recorder state
-    private byte _scMods;
-    private readonly List<byte> _scKeys = new();
-
     public SettingsWindow()
     {
         InitializeComponent();
@@ -50,10 +46,6 @@ public partial class SettingsWindow : Window
             Dispatcher.Invoke(RefreshButtons);
         };
 
-        ShortcutBox.PreviewKeyDown += RecordKey;
-        ShortcutBox.GotKeyboardFocus += (_, _) => { if (_scKeys.Count == 0 && _scMods == 0) ShortcutBox.Text = "Press the keys…"; };
-        ShortcutClear.Click += (_, _) => { _scMods = 0; _scKeys.Clear(); ShortcutBox.Text = "Press the keys…"; ShortcutBox.Focus(); };
-        ShortcutAssign.Click += async (_, _) => await AssignShortcut();
 
         ComboRecorder.PreviewKeyDown += RecordComboKey;
         ComboRecorder.GotKeyboardFocus += (_, _) =>
@@ -325,7 +317,6 @@ public partial class SettingsWindow : Window
     {
         CategoryBar.Children.Clear();
         var names = d.ActionCatalog.Select(g => g.Name).ToList();
-        if (d.SupportsShortcuts) names.Add(CustomCombo);
         _category = names.FirstOrDefault() ?? "";
         foreach (var name in names)
         {
@@ -347,7 +338,7 @@ public partial class SettingsWindow : Window
 
         // Jump to the category that holds the current action.
         var group = current is null ? null : d.ActionCatalog.FirstOrDefault(g => g.Actions.Contains(current));
-        string wanted = group?.Name ?? (d.SupportsShortcuts && current is not null ? CustomCombo : _category);
+        string wanted = group?.Name ?? _category;
         foreach (var rb in CategoryBar.Children.OfType<RadioButton>())
             if ((string)rb.Content == wanted && rb.IsChecked != true) rb.IsChecked = true;
         _category = wanted;
@@ -360,17 +351,6 @@ public partial class SettingsWindow : Window
         var d = _dev;
         if (d is null) return;
         ShowComboEditor();
-        bool shortcut = _category == CustomCombo;
-        ShortcutPanel.Visibility = shortcut ? Visibility.Visible : Visibility.Collapsed;
-        ActionList.Visibility = shortcut ? Visibility.Collapsed : Visibility.Visible;
-        SearchBox.Visibility = ActionList.Visibility;
-        if (shortcut)
-        {
-            var cur = Map.SelectedSlot >= 0 ? d.GetBinding(Map.SelectedSlot) : null;
-            ShortcutBox.Text = cur?.Label ?? "Click here, then press the keys";
-            return;
-        }
-
         string q = SearchBox.Text.Trim();
         var group = d.ActionCatalog.FirstOrDefault(g => g.Name == _category);
         _visibleActions = (group?.Actions ?? Array.Empty<ButtonAction>())
@@ -401,36 +381,7 @@ public partial class SettingsWindow : Window
         });
     }
 
-    private void RecordKey(object sender, KeyEventArgs e)
-    {
-        e.Handled = true;
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        byte bit = HidKeys.ModifierBit(key);
-        if (bit != 0) _scMods |= bit;
-        else if (HidKeys.Usage(key) is byte usage && !_scKeys.Contains(usage) && _scKeys.Count < 3) _scKeys.Add(usage);
-        ShortcutBox.Text = Core.Spatha.SpathaCodec.Describe(Core.Spatha.SpathaCodec.Key(_scMods, _scKeys.ToArray()));
-    }
-
-    private async Task AssignShortcut()
-    {
-        var d = _dev;
-        if (d is null || Map.SelectedSlot < 0) return;
-        var action = d.MakeShortcut(new Shortcut(_scMods, _scKeys.ToList()));
-        if (action is null) { SetStatus("Press at least one key first", Res("Warn")); return; }
-        int slot = Map.SelectedSlot;
-        await MouseManager.SetBindingAsync(_dev, slot, action);
-        Dispatcher.Invoke(() =>
-        {
-            _scMods = 0;
-            _scKeys.Clear();
-            Map.SetLabels(s => _dev?.GetBinding(s)?.Label);
-            SlotCurrent.Text = action.Label;
-        });
-    }
-
-    // ---- Spatha X combos (carrier key + replay) ----
-
-    private const string CustomCombo = "Custom combo";
+    // ---- combos (carrier key + replay), the same on both mice ----
 
     private ushort _editingCombo;
     private readonly List<Keys> _comboKeys = new();
@@ -441,13 +392,22 @@ public partial class SettingsWindow : Window
     private static List<Keys> Ordered(IEnumerable<Keys> keys) =>
         keys.OrderBy(k => Array.IndexOf(ModifierOrder, k) is int i && i >= 0 ? i : 100).ToList();
 
-    /// <summary>The editor shows for the Spatha X when the button has a combo or the Combos tab is open.</summary>
+    /// <summary>Combo carrier (0x68-0x73) of a binding on either mouse, or 0.</summary>
+    private static ushort CarrierOf(ButtonAction? a) => a?.Payload switch
+    {
+        ushort u when AsusMouseDevice.IsCarrier(u) => u,
+        byte[] b => Core.Spatha.SpathaDevice.CarrierOf(b),
+        _ => 0,
+    };
+
+    /// <summary>The editor shows when the button has a combo or the Combos tab is open.</summary>
     private void ShowComboEditor()
     {
         var d = _dev;
         var current = d is not null && Map.SelectedSlot >= 0 ? d.GetBinding(Map.SelectedSlot) : null;
-        bool isCombo = current?.Payload is ushort code && AsusMouse.CombosByCode.ContainsKey(code);
-        bool comboTab = d is AsusMouseDevice && _category == "Combos";
+        ushort code = CarrierOf(current);
+        bool isCombo = code != 0 && AsusMouse.CombosByCode.ContainsKey(code);
+        bool comboTab = _category == "Combos";
         if (!isCombo && !comboTab)
         {
             ComboPanel.Visibility = Visibility.Collapsed;
@@ -460,19 +420,19 @@ public partial class SettingsWindow : Window
         {
             _editingCombo = 0;
             ComboTitle.Text = "EDIT COMBO";
-            ComboHelp.Text = "The Spatha X can't send key combinations by itself. Pick one of the 12 combos above for this button; you can then change which keys it types right here.";
+            ComboHelp.Text = "Pick one of the 12 combos above for this button. Each one makes the mouse send a spare key (F13-F24) and SpathaRE types the combination; you can change which keys it types right here.";
             ComboRecorder.Text = "";
             ComboRecorder.IsEnabled = ComboSave.IsEnabled = ComboDefault.IsEnabled = false;
             return;
         }
 
-        _editingCombo = (ushort)current!.Payload;
+        _editingCombo = code;
         var combo = AsusMouse.CombosByCode[_editingCombo];
         string carrier = AsusMouseDevice.CarrierKey(_editingCombo);
         ComboTitle.Text = $"EDIT COMBO {carrier}";
         ComboHelp.Text = $"This button makes the mouse send {carrier}, and SpathaRE types the keys below. " +
                          "1. Click the box.  2. Press the new keys together.  3. Save keys. " +
-                         $"Every button set to {carrier}, in any profile, changes with it. " +
+                         $"Every button set to {carrier}, on either mouse and in any profile, changes with it. " +
                          "Keys Windows keeps for itself (Alt+Tab, Win+L) can't be pressed here: click the box, press Backspace and type them instead, e.g. Win+Shift+S.";
         ComboRecorder.IsEnabled = ComboSave.IsEnabled = ComboDefault.IsEnabled = true;
         _comboKeys.Clear();

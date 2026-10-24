@@ -117,8 +117,9 @@ public static class SpathaCodec
 
     public static readonly (string Name, byte Usage)[] MediaKeys =
     {
-        ("Play / Pause", 0xCD), ("Stop", 0xB7), ("Next track", 0xB5), ("Previous track", 0xB6),
-        ("Mute", 0xE2), ("Volume up", 0xE9), ("Volume down", 0xEA),
+        // Same order as the Spatha X's Multimedia list.
+        ("Volume up", 0xE9), ("Volume down", 0xEA), ("Next track", 0xB5), ("Previous track", 0xB6),
+        ("Mute", 0xE2), ("Play / Pause", 0xCD), ("Stop", 0xB7),
     };
 
     private static readonly (byte Mask, string Name)[] MouseNames =

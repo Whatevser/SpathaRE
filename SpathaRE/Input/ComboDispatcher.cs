@@ -9,8 +9,8 @@ namespace SpathaRE.Input;
 /// <summary>
 /// Makes multi-key mouse bindings actually work.
 ///
-/// The mouse cannot emit Ctrl+C. When a button is bound to a "combo" action the
-/// firmware only sends a carrier key — F13 through F24, one per action code
+/// A combo button doesn't emit Ctrl+C itself: on both Spathas it sends only a
+/// carrier key — F13 through F24, one per action code
 /// 0x0068..0x0073. Something on the host has to catch that carrier and replay
 /// the real keystrokes. Without this class, binding a side button to Copy makes
 /// the mouse send F13 and nothing happens.
@@ -42,13 +42,12 @@ public sealed class ComboDispatcher
     {
         _hotkeys.UnregisterGroup(HotkeyGroup);
 
+        // Both mice use the same twelve carriers: the Spatha X binds code 0x0068.., the
+        // original Spatha the HID key F13.., which is the same number.
         var codes = new HashSet<ushort>();
-        foreach (var m in MouseManager.AsusSnapshot())
-        {
-            if (!m.HasButtonBindings() || !m.ButtonBindingsReady || m.ButtonBindings is null) continue;
-            foreach (ushort code in m.ButtonBindings)
+        foreach (var d in MouseManager.Snapshot())
+            foreach (ushort code in d.BoundCombos)
                 if (AsusMouse.CombosByCode.ContainsKey(code)) codes.Add(code);
-        }
 
         foreach (ushort code in codes)
         {

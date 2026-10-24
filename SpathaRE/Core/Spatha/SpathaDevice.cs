@@ -195,10 +195,38 @@ public sealed class SpathaDevice : IMouseDevice
     public IReadOnlyList<ButtonSlot> ButtonSlots { get; } =
         Enumerable.Range(0, SpathaCodec.ButtonSlots).Select(i => new ButtonSlot(i, SlotNames[i])).ToList();
 
-    private static ButtonAction Action(byte[] bytes, string? label = null) =>
-        new(Convert.ToHexString(bytes), label ?? Describe(bytes), bytes);
+    // ---- combos: same model as the Spatha X ----
+    // A combo button sends one of twelve spare keys, F13-F24 (HID 0x68-0x73), and
+    // SpathaRE types the combination. The twelve combos and their keys are shared
+    // with the Spatha X (config mouse_combo_F13..F24), so both mice list and edit
+    // them the same way. The app fills in these two hooks at startup.
 
-    public IReadOnlyList<ActionGroup> ActionCatalog { get; } = BuildCatalog();
+    public const byte FirstCarrier = 0x68, LastCarrier = 0x73;
+
+    /// <summary>Carrier HID usage -> label like "Alt+Tab (F13)".</summary>
+    public static Func<byte, string>? ComboLabel { get; set; }
+    /// <summary>Carrier HID usage -> the keys it types, for export.</summary>
+    public static Func<byte, PortableAction?>? ComboKeys { get; set; }
+    /// <summary>Import: key combination -> a combo carrier (existing or newly set up), avoiding the busy ones.</summary>
+    public static Func<PortableAction, HashSet<ushort>, ImportReport, ushort?>? AllocateCombo { get; set; }
+
+    /// <summary>The carrier usage when the slot is a plain F13-F24 key press, else 0.</summary>
+    public static byte CarrierOf(byte[] b) =>
+        b.Length == 5 && b[0] == 0x02 && b[1] == 0 && b[2] >= FirstCarrier && b[2] <= LastCarrier && b[3] == 0 && b[4] == 0
+            ? b[2] : (byte)0;
+
+    private static string Label(byte[] bytes)
+    {
+        byte c = CarrierOf(bytes);
+        if (c != 0) return ComboLabel?.Invoke(c) ?? KeyName(c);
+        return Describe(bytes);
+    }
+
+    private static ButtonAction Action(byte[] bytes, string? label = null) =>
+        new(Convert.ToHexString(bytes), label ?? Label(bytes), bytes);
+
+    /// <summary>Same groups, names and order as the Spatha X. Rebuilt on every read so combo labels stay current.</summary>
+    public IReadOnlyList<ActionGroup> ActionCatalog => BuildCatalog();
 
     private static IReadOnlyList<ActionGroup> BuildCatalog()
     {
@@ -208,16 +236,17 @@ public sealed class SpathaDevice : IMouseDevice
             Action(SpathaCodec.Mouse(8)), Action(SpathaCodec.Mouse(16)),
             Action(DpiButton), Action(WheelUp), Action(WheelDown), Action(Disabled),
         };
+        var combos = Enumerable.Range(FirstCarrier, LastCarrier - FirstCarrier + 1)
+            .Select(u => Action(Key(0, (byte)u))).ToList();
         var media = MediaKeys.Select(m => Action(SpathaCodec.Media(m.Usage), m.Name)).ToList();
 
         // Every HID key the firmware can send, in keyboard order. Lone modifiers go in
-        // the modifier byte; everything else is a key usage.
+        // the modifier byte; everything else is a key usage. F13-F24 are the combo carriers.
         var keys = new List<ButtonAction>();
         var usages = Enumerable.Range(0x04, 0x38 - 0x04 + 1)       // A-Z, 1-0, Enter..'/'
             .Concat(Enumerable.Range(0x39, 0x53 - 0x39 + 1))        // Caps, F1-F12, nav block, NumLock
             .Concat(Enumerable.Range(0x54, 0x63 - 0x54 + 1))        // numpad
             .Concat(new[] { 0x65 })                                 // Menu
-            .Concat(Enumerable.Range(0x68, 12))                     // F13-F24
             .Where(u => u != 0x32);                                 // non-US # (no key on most layouts)
         foreach (int u in usages) keys.Add(Action(Key(0, (byte)u)));
         string[] mods = { "Left Ctrl", "Left Shift", "Left Alt", "Left Win", "Right Ctrl", "Right Shift", "Right Alt", "Right Win" };
@@ -226,10 +255,16 @@ public sealed class SpathaDevice : IMouseDevice
         return new List<ActionGroup>
         {
             new("Mouse", mouse),
-            new("Media", media),
+            new("Combos", combos),
+            new("Multimedia", media),
             new("Keyboard", keys),
         };
     }
+
+    public IReadOnlyCollection<ushort> BoundCombos => !IsReady ? Array.Empty<ushort>() :
+        Enumerable.Range(0, SpathaCodec.ButtonSlots)
+            .Select(i => CarrierOf(_block.AsSpan(OffButtons + 5 * i, 5).ToArray()))
+            .Where(c => c != 0).Select(c => (ushort)c).ToHashSet();
 
     public ButtonAction? GetBinding(int slot)
     {
@@ -427,12 +462,27 @@ public sealed class SpathaDevice : IMouseDevice
         if (data.Dpi.Count > 2)
             report.Note($"{where}: the Spatha has 2 DPI stages, stages 3-{data.Dpi.Count} were left out.");
 
+        // Key combinations become combos (F13-F24) as on the Spatha X. Carriers bound to
+        // buttons this import leaves alone stay as they are.
+        var busy = new HashSet<ushort>(report.ReservedCarriers);
+        for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
+            if (!data.Buttons.ContainsKey(Devices.Buttons.SpathaSlots[i]))
+                if (CarrierOf(current.AsSpan(OffButtons + 5 * i, 5).ToArray()) is byte c && c != 0) busy.Add(c);
+
         for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
         {
             string id = Devices.Buttons.SpathaSlots[i];
             if (!data.Buttons.TryGetValue(id, out var action)) continue;
             // Already does that (the mouse keeps stray bytes after some codes): leave it.
             if (ToPortable(current.AsSpan(OffButtons + 5 * i, 5).ToArray()).SameAs(action)) continue;
+            if (action.Type == "key" && action.KeyCount > 1 && AllocateCombo is not null)
+            {
+                if (AllocateCombo(action, busy, report) is ushort carrier)
+                    Key(0, (byte)carrier).CopyTo(wanted, OffButtons + 5 * i);
+                else
+                    report.Note($"{where}: {Devices.Buttons.Name(id)}: no free combo slot (F13-F24) left, left unchanged.");
+                continue;
+            }
             var bytes = FromPortable(action, out string? why);
             if (bytes is null)
             {
@@ -473,6 +523,13 @@ public sealed class SpathaDevice : IMouseDevice
     public static PortableAction ToPortable(byte[] b)
     {
         PortableAction a;
+        byte carrier = CarrierOf(b);
+        if (carrier != 0 && ComboKeys?.Invoke(carrier) is PortableAction keys)
+        {
+            // Export the keys the combo types, so the file means the same on any machine.
+            keys.Label = Label(b);
+            return keys;
+        }
         switch (b[0])
         {
             case 0xFF: a = PortableAction.Simple("disabled"); break;
@@ -487,7 +544,7 @@ public sealed class SpathaDevice : IMouseDevice
                 break;
             default: a = new PortableAction { Type = "raw", Model = "Spatha", Raw = Convert.ToHexString(b) }; break;
         }
-        a.Label = Describe(b);
+        a.Label = Label(b);
         return a;
     }
 

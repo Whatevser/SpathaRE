@@ -140,6 +140,30 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     SpathaDevice.AsleepAfter = TimeSpan.FromSeconds(60);
 }
 
+// ---- combos: same F13-F24 model as the Spatha X ----
+{
+    var p = NewMouse(out var fake);
+    var d = new SpathaDevice(p, wired: true);
+    d.Synchronize();
+    Check(d.ActionCatalog.Select(g => g.Name).SequenceEqual(new[] { "Mouse", "Combos", "Multimedia", "Keyboard" }),
+          "categories and order match the Spatha X");
+    Check(d.ActionCatalog[2].Actions.First().Label == "Volume up", "multimedia in the Spatha X order");
+    var combos = d.ActionCatalog[1].Actions;
+    Check(combos.Count == 12 && combos[0].Label == "F13", "12 combos (labels come from the app)");
+    Check(!d.ActionCatalog[3].Actions.Any(a => a.Label == "F13"), "F13-F24 are only listed as combos");
+    SpathaDevice.ComboLabel = u => $"Alt+Tab (F{13 + u - 0x68})";
+    d.SetBinding(10, d.ActionCatalog[1].Actions[0]);
+    Check(fake.Mem.Skip(0x183 + 50).Take(5).SequenceEqual(new byte[] { 2, 0, 0x68, 0, 0 }), "a combo binds the F13 carrier");
+    Check(d.GetBinding(10)?.Label == "Alt+Tab (F13)" && d.BoundCombos.SequenceEqual(new ushort[] { 0x68 }), "combo label and bound carriers");
+
+    SpathaDevice.AllocateCombo = (a, busy, r) => { ushort c = 0x69; while (busy.Contains(c)) c++; busy.Add(c); return c; };
+    var data = new PortableProfile { Buttons = { ["side3"] = PortableAction.Key(0x03, new byte[] { 0x17 }) } };   // Ctrl+Shift+T
+    d.ImportProfile(0, data, new ImportReport());
+    Check(fake.Mem.Skip(0x183 + 30).Take(5).SequenceEqual(new byte[] { 2, 0, 0x69, 0, 0 }), "imported key combination becomes a combo, skipping the one in use");
+    SpathaDevice.ComboLabel = null;
+    SpathaDevice.AllocateCombo = null;
+}
+
 // ---- names shared by both models ----
 Check(Buttons.SlotName(DeviceModel.Spatha, 10) == "Side button 1" && Buttons.SlotName(DeviceModel.SpathaX, 8) == "Side button 1",
       "side button 1 has the same name on both models");

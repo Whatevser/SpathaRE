@@ -53,6 +53,8 @@ public interface IMouseDevice : IDisposable
     ButtonAction? GetBinding(int slot);
     void SetBinding(int slot, ButtonAction action);
     void ResetBindings();
+    /// <summary>Combo carriers (0x68-0x73 = F13-F24) bound in the active profile; ComboDispatcher replays them.</summary>
+    IReadOnlyCollection<ushort> BoundCombos { get; }
     /// <summary>True when the mouse can send a modifier combo by itself.</summary>
     bool SupportsShortcuts { get; }
     ButtonAction? MakeShortcut(Shortcut shortcut);

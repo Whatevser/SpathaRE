@@ -353,8 +353,12 @@ public sealed class AsusMouseDevice : IMouseDevice
         return a;
     }
 
+    public IReadOnlyCollection<ushort> BoundCombos =>
+        !Mouse.ButtonBindingsReady || Mouse.ButtonBindings is null ? Array.Empty<ushort>()
+            : Mouse.ButtonBindings.Where(IsCarrier).ToHashSet();
+
     /// <summary>The key combination a carrier currently types, as modifiers + HID keys.</summary>
-    private static PortableAction? CarrierKeys(ushort code) =>
+    public static PortableAction? CarrierKeys(ushort code) =>
         AsusMouse.CombosByCode.TryGetValue(code, out var combo)
             ? KeyCodes.FromVirtualKeys(Input.ComboDispatcher.ParseCommand(combo.ResolveCommand()).Select(k => (int)k))
             : null;
@@ -387,24 +391,8 @@ public sealed class AsusMouseDevice : IMouseDevice
 
         foreach (var (slot, a) in combos)
         {
-            string name = Buttons.Name(Buttons.SpathaXSlots[slot]);
-            ushort? carrier = null;
-            for (ushort c = FirstCarrier; c <= LastCarrier && carrier is null; c++)
-                if (CarrierKeys(c)?.KeySignature == a.KeySignature) carrier = c;
-            for (ushort c = FirstCarrier; c <= LastCarrier && carrier is null; c++)
-            {
-                if (busy.Contains(c)) continue;
-                var vks = KeyCodes.ToVirtualKeys(a);
-                if (vks is null) break;
-                var old = Input.ComboDispatcher.Describe(AsusMouse.CombosByCode[c].ResolveCommand());
-                AppConfig.Set(AsusMouse.CombosByCode[c].ConfigKey, string.Join(" ", vks.Select(v => $"0x{v:X2}")));
-                report.Note($"Combo {CarrierKey(c)} now types {Input.ComboDispatcher.Describe(AsusMouse.CombosByCode[c].ResolveCommand())} " +
-                            $"(was {old}). Other profiles that use {CarrierKey(c)} type it too.");
-                carrier = c;
-            }
-            if (carrier is null) { report.Note($"{where}: {name}: no free combo slot (F13-F24) left, left unchanged."); continue; }
-            busy.Add(carrier.Value);
-            report.ReservedCarriers.Add(carrier.Value);
+            ushort? carrier = AllocateCarrier(a, busy, report);
+            if (carrier is null) { report.Note($"{where}: {Buttons.Name(Buttons.SpathaXSlots[slot])}: no free combo slot (F13-F24) left, left unchanged."); continue; }
             final[slot] = carrier.Value;
         }
 
@@ -430,6 +418,33 @@ public sealed class AsusMouseDevice : IMouseDevice
         if (changed > 0) Mouse.FlushSettings();
         report.Written++;
         Logger.WriteLine($"{Name}: imported into profile {profile + 1}: {changed} change(s)");
+    }
+
+    /// <summary>
+    /// The combo (F13-F24 carrier) for a key combination: one that already types
+    /// those keys, else the first one not in <paramref name="busy"/>, which is then
+    /// set to type them. Shared by both mice. Null when all twelve are taken.
+    /// </summary>
+    public static ushort? AllocateCarrier(PortableAction a, HashSet<ushort> busy, ImportReport report)
+    {
+        ushort? carrier = null;
+        for (ushort c = FirstCarrier; c <= LastCarrier && carrier is null; c++)
+            if (CarrierKeys(c)?.KeySignature == a.KeySignature) carrier = c;
+        var vks = KeyCodes.ToVirtualKeys(a);
+        for (ushort c = FirstCarrier; c <= LastCarrier && carrier is null && vks is not null; c++)
+        {
+            if (busy.Contains(c)) continue;
+            var combo = AsusMouse.CombosByCode[c];
+            string old = Input.ComboDispatcher.Describe(combo.ResolveCommand());
+            AppConfig.Set(combo.ConfigKey, string.Join(" ", vks.Select(v => $"0x{v:X2}")));
+            report.Note($"Combo {CarrierKey(c)} now types {Input.ComboDispatcher.Describe(combo.ResolveCommand())} " +
+                        $"(was {old}). Every button that uses {CarrierKey(c)} types it too.");
+            carrier = c;
+        }
+        if (carrier is null) return null;
+        busy.Add(carrier.Value);
+        report.ReservedCarriers.Add(carrier.Value);
+        return carrier;
     }
 
     /// <summary>The Spatha X code for an action, or null. Key combinations the mouse can't send

@@ -19,8 +19,9 @@ talk to it, and shares the same settings window.
 ## Features
 
 * An Armoury-style **button map**: click a button on the mouse art (or its
-  callout) and pick what it does: mouse functions, keys, media keys, DPI switch,
-  or a **custom key combination** such as Ctrl+Shift+Esc.
+  callout) and pick what it does: mouse functions, combos (key combinations such
+  as Alt+Tab, editable), multimedia keys, single keys or the DPI switch. Both
+  mice use the same categories, names and combos.
 * **DPI** stages, polling rate, angle snapping, acceleration, button response.
 * **Lighting** per zone (logo, scroll wheel, base), sleep timer, low-battery
   alert, battery level.
@@ -37,21 +38,19 @@ the same time works, but they overwrite each other and everything gets slow.
 
 ## Using it
 
-### Custom key combinations
+### Combos (key combinations)
 
-* **Original Spatha**: the mouse sends combinations by itself. Under Buttons,
-  pick the button, open the **Custom combo** tab, click the box, press the keys
-  together (up to 3 keys plus Ctrl / Shift / Alt / Win) and click *Assign*. It
-  keeps working without SpathaRE running.
-* **Spatha X**: the mouse can't send a combination. Instead a button can send
-  one of twelve spare keys, F13-F24, and SpathaRE types the real combination when
-  it sees that key. The **Combos** tab lists them as e.g. `Alt+Tab (F13)`: the
-  keys typed, then the spare key in brackets. Pick one for the button, then
-  change its keys in the *Edit combo* box below the list (click, press the keys,
-  *Save keys*). Combinations Windows keeps for itself, like Alt+Tab, can be
-  typed instead: click the box, press Backspace and type `Alt+Tab`. A combo is
-  shared by every button and profile that uses the same spare key. This needs
-  SpathaRE running.
+Both mice handle combinations the same way. The **Combos** tab under Buttons
+lists twelve combos, shown as e.g. `Alt+Tab (F13)`: the keys typed, then the
+spare key in brackets. A combo button makes the mouse send that spare key
+(F13-F24) and SpathaRE types the real combination, so this needs SpathaRE
+running.
+
+To change what a combo types, give a button that combo, then use the *Edit
+combo* box below the list: click it, press the keys together, *Save keys*.
+Combinations Windows keeps for itself, like Alt+Tab, can be typed instead: click
+the box, press Backspace and type `Alt+Tab`. The twelve combos are shared by both
+mice and every profile, so changing F13 changes it everywhere.
 
 ### Profiles
 
@@ -89,8 +88,9 @@ profile numbers.
 Files work across models. Buttons are matched by position, so side button 3
 stays side button 3, and DPI stages 1 and 2 are copied (the original Spatha has
 two). Anything the target can't do is left unchanged and listed afterwards:
-"Side button" functions and double click only exist on the Spatha X. On the
-Spatha X, key combinations from the Spatha go into a free F13-F24 combo.
+"Side button" functions and double click only exist on the Spatha X. Combos are
+saved as the keys they type and land on the combo that types the same keys, or
+on a free one.
 Lighting and the other settings are not included on purpose; the two models
 store them too differently to move safely.
 
@@ -114,7 +114,7 @@ editable in Settings → Hotkeys; the file is only needed for the advanced keys.
 | `hotkey_profile_next` / `_prev` | `Ctrl+Alt+OemPlus` / `OemMinus` | next / previous profile |
 | `hotkey_popup` | `Ctrl+Alt+M` | show the tray popup |
 | `notify_profile_change` | `1` | tray notification when the profile is switched on the mouse |
-| `mouse_combo_F13` … `mouse_combo_F24` | see the Combos tab | keys each Spatha X combo types (`Ctrl+C` or hex virtual keys `0xA2 0x43`) |
+| `mouse_combo_F13` … `mouse_combo_F24` | see the Combos tab | keys each combo types (`Ctrl+C` or hex virtual keys `0xA2 0x43`) |
 | `combo_hold_ms` | `10` | how long combo keys are held down |
 | `profile_poll_ms` | `1500` | how often the active profile is checked; `0` turns it off |
 | `spatha_allow_default_profile` | `0` | allow writing the original Spatha's Default profile |
