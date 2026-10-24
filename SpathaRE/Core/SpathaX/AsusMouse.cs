@@ -1,10 +1,14 @@
-using SpathaRE.Core.Usb;
+// Spatha X: G-Helper's ASUS mouse protocol (seerge/g-helper, GPL-3.0), adapted.
+// G-Helper uses this base class for many ASUS mice; SpathaRE only creates the Spatha X
+// models (SpathaXModels.cs), so most switches here are decided by their overrides.
+// Changes from G-Helper: namespace, Aura-sync code removed, combo table moved to
+// Input/Combos.cs, repeated readings logged only when they change.
+
 using System.Drawing;                     // Color, used by LightingSetting/AsusMouseDPI
-using Keys = System.Windows.Forms.Keys;   // combo tables use WinForms VK constants
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace SpathaRE.Core.Mouse
+namespace SpathaRE.Core.SpathaX
 {
     public enum PowerOffSetting
     {
@@ -2271,39 +2275,14 @@ namespace SpathaRE.Core.Mouse
             (0x0000, "Disabled"     ),
         };
 
-        public sealed record ComboDef(ushort PassthroughCode, string Label, string DefaultCommand)
-        {
-            public string ConfigKey => $"mouse_combo_F{13 + (PassthroughCode - 0x0068)}";
-            public string ResolveCommand() => AppConfig.GetString(ConfigKey) ?? DefaultCommand;
-        }
-
-        private static string Hex(params Keys[] keys) =>
-            string.Join(" ", keys.Select(k => $"0x{(int)k:X2}"));
-
-        public static readonly IReadOnlyList<ComboDef> MouseCombos = new List<ComboDef>
-        {
-            new(0x0068, "Alt + Tab",          Hex(Keys.LMenu,       Keys.Tab)),
-            new(0x0069, "Alt + F4",           Hex(Keys.LMenu,       Keys.F4)),
-            new(0x006A, "Win + D",            Hex(Keys.LWin,        Keys.D)),
-            new(0x006B, "Win + E",            Hex(Keys.LWin,        Keys.E)),
-            new(0x006C, "Win + L",            Hex(Keys.LWin,        Keys.L)),
-            new(0x006D, "Win + Tab",          Hex(Keys.LWin,        Keys.Tab)),
-            new(0x006E, "Win + V",            Hex(Keys.LWin,        Keys.V)),
-            new(0x006F, "Copy",               Hex(Keys.LControlKey, Keys.C)),
-            new(0x0070, "Paste",              Hex(Keys.LControlKey, Keys.V)),
-            new(0x0071, "Undo",               Hex(Keys.LControlKey, Keys.Z)),
-            new(0x0072, "Task Manager",       Hex(Keys.LControlKey, Keys.LShiftKey, Keys.Escape)),
-            new(0x0073, "Minimize All",       Hex(Keys.LWin,        Keys.M)),
-        };
-
-        public static readonly Dictionary<ushort, ComboDef> CombosByCode =
-            MouseCombos.ToDictionary(c => c.PassthroughCode);
+        // SpathaRE: the twelve combos (F13-F24) are shared with the original Spatha and
+        // live in Input/Combos.cs.
 
         public static readonly IReadOnlyList<(string GroupLabel, IReadOnlyList<(ushort Code, string Name)> Items)>
         DefaultBindingGroups = new List<(string, IReadOnlyList<(ushort, string)>)>
         {
             ("Mouse",      MouseBindings),
-            ("Combos",     MouseCombos.Select(c => (c.PassthroughCode, c.Label)).ToList()),
+            ("Combos",     Input.Combos.All.Select(c => (c.Code, c.Name)).ToList()),
             ("Multimedia", MultimediaBindings),
             ("Keyboard",   KeyboardBindings),
         };

@@ -14,7 +14,7 @@ talk to it, and shares the same settings window.
 | Mouse | USB IDs | Protocol |
 |---|---|---|
 | ROG Spatha (original, 2016, model L701) | wired `0B05:181C`, dock `0B05:1824` | own, reverse engineered ([PROTOCOL.md](PROTOCOL.md)) |
-| ROG Spatha X | wireless `0B05:1979`, wired `0B05:1977` | G-Helper's AsusMouse (vendored) |
+| ROG Spatha X | wireless `0B05:1979`, wired `0B05:1977` | G-Helper's, adapted ([g-helper](https://github.com/seerge/g-helper)) |
 
 ![Buttons page: the button map with callouts, and the Combos list with the Edit combo box](docs/screenshots/buttons-spatha-x.webp)
 
@@ -169,14 +169,17 @@ wireless, export / import. Pure .NET, so it also runs on Linux and macOS.
 | Path | What |
 |---|---|
 | `SpathaRE/` | the app (WPF, .NET 10) |
-| `SpathaRE/Core/Spatha/` | original Spatha: memory layout, protocol, HID transport, device |
-| `SpathaRE/Core/Devices/` | the model both mice share, button names, export format, Spatha X adapter |
-| `SpathaRE/Core/Mouse/`, `Core/Usb/` | Spatha X support, vendored from G-Helper |
+| `SpathaRE/Core/` | app-wide: `MouseManager` (finds the mice, polling, every operation), settings file, log |
+| `SpathaRE/Core/Shared/` | what both mice share: the `IMouseDevice` interface the UI uses, button names, export format, key codes |
+| `SpathaRE/Core/SpathaL701/` | original Spatha (L701): memory layout, protocol, HID transport, discovery, device |
+| `SpathaRE/Core/SpathaX/` | Spatha X: adapter (`SpathaXDevice`) on top of G-Helper's `AsusMouse` and its HID code (`Hid/`), adapted |
+| `SpathaRE/Input/` | combos (F13-F24 → keystrokes) and global hotkeys |
 | `SpathaRE/UI/` | settings window, button map, tray popup |
-| `SpathaRE/Input/`, `Hotkeys/` | combo replay (F13-F24 → keystrokes) and global hotkeys |
-| `SpathaRE.Tests/` | tests against a simulated Spatha |
+| `SpathaRE.Tests/` | tests against a simulated original Spatha |
 | `PROTOCOL.md` | the original Spatha's USB protocol |
 | `tools/python/` | `spatha.py`, the command-line tool used to decode and test the protocol |
+
+Each source file starts with a line saying which mouse it's for and what it does.
 
 ## Credits
 

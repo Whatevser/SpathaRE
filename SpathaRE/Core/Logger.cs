@@ -1,3 +1,5 @@
+// App-wide: the log file, log.txt next to config.json.
+
 using System.Diagnostics;
 using System.IO;
 

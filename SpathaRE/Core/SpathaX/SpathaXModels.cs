@@ -1,14 +1,15 @@
+// Spatha X: the two USB variants (dongle/dock 0B05:1979, cable 0B05:1977) and
+// what differs from the AsusMouse defaults. From G-Helper.
 
-namespace SpathaRE.Core.Mouse.Models
+namespace SpathaRE.Core.SpathaX
 {
-    //SPATHA_WIRELESS
-    public class SpathaX : AsusMouse
+    public class SpathaXWireless : AsusMouse
     {
-        public SpathaX() : base(0x0B05, 0x1979, "mi_00", true)
+        public SpathaXWireless() : base(0x0B05, 0x1979, "mi_00", true)
         {
         }
 
-        protected SpathaX(ushort vendorId, bool wireless) : base(0x0B05, vendorId, "mi_00", wireless)
+        protected SpathaXWireless(ushort vendorId, bool wireless) : base(0x0B05, vendorId, "mi_00", wireless)
         {
         }
 
@@ -165,7 +166,7 @@ namespace SpathaRE.Core.Mouse.Models
                 (0x01EF, "Side Button 6" ),
                 (0x0000, "Disabled"      ),
             }),
-            ("Combos",     AsusMouse.MouseCombos.Select(c => (c.PassthroughCode, c.Label)).ToList()),
+            ("Combos",     Input.Combos.All.Select(c => (c.Code, c.Name)).ToList()),
             ("Multimedia", AsusMouse.MultimediaBindings),
             ("Keyboard",   AsusMouse.KeyboardBindings  ),
         };
@@ -194,7 +195,7 @@ namespace SpathaRE.Core.Mouse.Models
         };
     }
 
-    public class SpathaXWired : SpathaX
+    public class SpathaXWired : SpathaXWireless
     {
         public SpathaXWired() : base(0x1977, false)
         {

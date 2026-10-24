@@ -1,19 +1,22 @@
-using System.Drawing;
-using SpathaRE.Core.Mouse;
+// Spatha X: the mouse as the UI sees it (IMouseDevice), on top of AsusMouse.
 
-namespace SpathaRE.Core.Devices;
+using System.Drawing;
+using SpathaRE.Core.Shared;
+using SpathaRE.Input;
+
+namespace SpathaRE.Core.SpathaX;
 
 /// <summary>
-/// Adapter that exposes G-Helper's AsusMouse (Spatha X) through IMouseDevice.
-/// The protocol code underneath is used as-is.
+/// Exposes G-Helper's AsusMouse (Spatha X) through IMouseDevice, with the button
+/// names, key list and combos shared with the original Spatha.
 /// </summary>
-public sealed class AsusMouseDevice : IMouseDevice
+public sealed class SpathaXDevice : IMouseDevice
 {
     public AsusMouse Mouse { get; }
 
     public event EventHandler? ExternalChange;
 
-    public AsusMouseDevice(AsusMouse mouse)
+    public SpathaXDevice(AsusMouse mouse)
     {
         Mouse = mouse;
         mouse.BatteryUpdated += (_, _) => ExternalChange?.Invoke(this, EventArgs.Empty);
@@ -64,9 +67,7 @@ public sealed class AsusMouseDevice : IMouseDevice
     public IReadOnlyList<ButtonSlot> ButtonSlots =>
         Mouse.ButtonSlots.OrderBy(kv => kv.Key).Select(kv => new ButtonSlot(kv.Key, Buttons.SlotName(Model, kv.Key))).ToList();
 
-    public const ushort FirstCarrier = 0x0068, LastCarrier = 0x0073;
-    public static bool IsCarrier(ushort code) => code >= FirstCarrier && code <= LastCarrier;
-    public static string CarrierKey(ushort code) => $"F{13 + (code - FirstCarrier)}";
+    private static bool IsCarrier(ushort code) => Combos.IsCarrier(code);
 
     /// <summary>Names shared with the original Spatha (G-Helper's own wording differs).</summary>
     private static readonly Dictionary<ushort, string> CommonNames = new()
@@ -85,8 +86,7 @@ public sealed class AsusMouseDevice : IMouseDevice
     /// <summary>A combo shows the keys it types and the carrier key the mouse sends, e.g. "Alt+Tab (F13)".</summary>
     public static string Label(ushort code)
     {
-        if (IsCarrier(code) && AsusMouse.CombosByCode.TryGetValue(code, out var combo))
-            return $"{Input.ComboDispatcher.Describe(combo.ResolveCommand())} ({CarrierKey(code)})";
+        if (Combos.IsCarrier(code)) return Combos.Label(code);
         if (CommonNames.TryGetValue(code, out var name)) return name;
         if (code is >= 0x0004 and <= 0x00E7) return Buttons.KeyName(code);
         return AsusMouse.LabelForActionCode(code);
@@ -351,8 +351,7 @@ public sealed class AsusMouseDevice : IMouseDevice
         else if (code >= 0x01EA && code <= 0x01EF) a = new PortableAction { Type = "side", Button = $"side{code - 0x01EA + 1}" };
         else if (PortableMouse.Any(m => m.Code == code)) a = PortableAction.Mouse(PortableMouse.First(m => m.Code == code).Button);
         else if (PortableMedia.Any(m => m.Code == code)) a = PortableAction.OfMedia(PortableMedia.First(m => m.Code == code).Name);
-        else if (IsCarrier(code) && AsusMouse.CombosByCode.TryGetValue(code, out var combo)
-                 && KeyCodes.FromVirtualKeys(Input.ComboDispatcher.ParseCommand(combo.ResolveCommand()).Select(k => (int)k)) is PortableAction keys)
+        else if (Combos.IsCarrier(code) && Combos.KeysOf(code) is PortableAction keys)
             a = keys;
         else if (code >= 0x00E0 && code <= 0x00E7) a = PortableAction.Key((byte)(1 << (code - 0x00E0)), Array.Empty<byte>());
         else if (KeyboardCodes.Contains(code)) a = PortableAction.Key(0, new[] { (byte)code });
@@ -364,12 +363,6 @@ public sealed class AsusMouseDevice : IMouseDevice
     public IReadOnlyCollection<ushort> BoundCombos =>
         !Mouse.ButtonBindingsReady || Mouse.ButtonBindings is null ? Array.Empty<ushort>()
             : Mouse.ButtonBindings.Where(IsCarrier).ToHashSet();
-
-    /// <summary>The key combination a carrier currently types, as modifiers + HID keys.</summary>
-    public static PortableAction? CarrierKeys(ushort code) =>
-        AsusMouse.CombosByCode.TryGetValue(code, out var combo)
-            ? KeyCodes.FromVirtualKeys(Input.ComboDispatcher.ParseCommand(combo.ResolveCommand()).Select(k => (int)k))
-            : null;
 
     public void ImportProfile(int profile, PortableProfile data, ImportReport report)
     {
@@ -399,7 +392,7 @@ public sealed class AsusMouseDevice : IMouseDevice
 
         foreach (var (slot, a) in combos)
         {
-            ushort? carrier = AllocateCarrier(a, busy, report);
+            ushort? carrier = Combos.Allocate(a, busy, report);
             if (carrier is null) { report.Note($"{where}: {Buttons.Name(Buttons.SpathaXSlots[slot])}: no free combo slot (F13-F24) left, left unchanged."); continue; }
             final[slot] = carrier.Value;
         }
@@ -426,33 +419,6 @@ public sealed class AsusMouseDevice : IMouseDevice
         if (changed > 0) Mouse.FlushSettings();
         report.Written++;
         Logger.WriteLine($"{Name}: imported into profile {profile + 1}: {changed} change(s)");
-    }
-
-    /// <summary>
-    /// The combo (F13-F24 carrier) for a key combination: one that already types
-    /// those keys, else the first one not in <paramref name="busy"/>, which is then
-    /// set to type them. Shared by both mice. Null when all twelve are taken.
-    /// </summary>
-    public static ushort? AllocateCarrier(PortableAction a, HashSet<ushort> busy, ImportReport report)
-    {
-        ushort? carrier = null;
-        for (ushort c = FirstCarrier; c <= LastCarrier && carrier is null; c++)
-            if (CarrierKeys(c)?.KeySignature == a.KeySignature) carrier = c;
-        var vks = KeyCodes.ToVirtualKeys(a);
-        for (ushort c = FirstCarrier; c <= LastCarrier && carrier is null && vks is not null; c++)
-        {
-            if (busy.Contains(c)) continue;
-            var combo = AsusMouse.CombosByCode[c];
-            string old = Input.ComboDispatcher.Describe(combo.ResolveCommand());
-            AppConfig.Set(combo.ConfigKey, string.Join(" ", vks.Select(v => $"0x{v:X2}")));
-            report.Note($"Combo {CarrierKey(c)} now types {Input.ComboDispatcher.Describe(combo.ResolveCommand())} " +
-                        $"(was {old}). Every button that uses {CarrierKey(c)} types it too.");
-            carrier = c;
-        }
-        if (carrier is null) return null;
-        busy.Add(carrier.Value);
-        report.ReservedCarriers.Add(carrier.Value);
-        return carrier;
     }
 
     /// <summary>The Spatha X code for an action, or null. Key combinations the mouse can't send

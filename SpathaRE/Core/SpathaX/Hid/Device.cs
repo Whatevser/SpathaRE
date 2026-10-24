@@ -1,8 +1,9 @@
+// Spatha X: HID plumbing under AsusMouse, from G-Helper.
+
 // Source thanks to https://github.com/vddCore/Starlight :)
 
-using SpathaRE.Core.Usb;
 
-namespace SpathaRE.Core.Usb
+namespace SpathaRE.Core.SpathaX
 {
     public abstract class Device : IDisposable
     {

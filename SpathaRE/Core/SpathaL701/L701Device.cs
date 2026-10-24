@@ -1,10 +1,13 @@
+// Spatha L701 (original): the mouse as the UI sees it (IMouseDevice), plus export/
+// import and the events the dock sends.
+
 using System.Drawing;
 using System.Text;
 using HidSharp;
-using SpathaRE.Core.Devices;
-using static SpathaRE.Core.Spatha.SpathaCodec;
+using SpathaRE.Core.Shared;
+using static SpathaRE.Core.SpathaL701.L701Codec;
 
-namespace SpathaRE.Core.Spatha;
+namespace SpathaRE.Core.SpathaL701;
 
 /// <summary>
 /// The original ROG Spatha (2016), wired or through its dock. Everything is
@@ -12,15 +15,15 @@ namespace SpathaRE.Core.Spatha;
 /// does it: settings live in 6 onboard profiles of 256 bytes, the UI edits the
 /// active one, and every save ends with the EnableSetting commit.
 /// </summary>
-public sealed class SpathaDevice : IMouseDevice
+public sealed class L701Device : IMouseDevice
 {
-    private readonly SpathaProtocol _p;
+    private readonly L701Protocol _p;
     private readonly bool _wired;
     private readonly string? _eventPath;
 
     private byte[] _block = new byte[BlockReadLength];
     private int _profile;
-    private int _profileCount = SpathaCodec.ProfileCount;
+    private int _profileCount = L701Codec.ProfileCount;
     private string _profileName = "";
     private int _activeDpiStage = -1;
 
@@ -38,7 +41,7 @@ public sealed class SpathaDevice : IMouseDevice
 
     public event EventHandler? ExternalChange;
 
-    public SpathaDevice(SpathaProtocol protocol, bool wired, string? eventDevicePath = null)
+    public L701Device(L701Protocol protocol, bool wired, string? eventDevicePath = null)
     {
         _p = protocol;
         _wired = wired;
@@ -65,7 +68,7 @@ public sealed class SpathaDevice : IMouseDevice
 
     public string ProfileName(int profile) =>
         profile == DefaultProfile ? "Default"
-        : Devices.Buttons.ProfileName(profile, profile == _profile ? _profileName : null);
+        : Shared.Buttons.ProfileName(profile, profile == _profile ? _profileName : null);
 
     private int Base => ProfileBase(_profile);
 
@@ -74,7 +77,7 @@ public sealed class SpathaDevice : IMouseDevice
     public void Synchronize()
     {
         byte reg = _p.ReadByte(RegProfile);
-        _profileCount = Math.Clamp(reg >> 4, 1, SpathaCodec.ProfileCount);
+        _profileCount = Math.Clamp(reg >> 4, 1, L701Codec.ProfileCount);
         _profile = Math.Clamp(reg & 0x0F, 0, _profileCount - 1);
         _block = _p.Read(Base, BlockReadLength);
         _profileName = DecodeName(_block);
@@ -207,7 +210,7 @@ public sealed class SpathaDevice : IMouseDevice
     // ---- buttons -------------------------------------------------------
 
     public IReadOnlyList<ButtonSlot> ButtonSlots { get; } =
-        Enumerable.Range(0, SpathaCodec.ButtonSlots).Select(i => new ButtonSlot(i, SlotNames[i])).ToList();
+        Enumerable.Range(0, L701Codec.ButtonSlots).Select(i => new ButtonSlot(i, SlotNames[i])).ToList();
 
     // ---- combos: same model as the Spatha X ----
     // A combo button sends one of twelve spare keys, F13-F24 (HID 0x68-0x73), and
@@ -246,16 +249,16 @@ public sealed class SpathaDevice : IMouseDevice
     {
         var mouse = new List<ButtonAction>
         {
-            Action(SpathaCodec.Mouse(1)), Action(SpathaCodec.Mouse(2)), Action(SpathaCodec.Mouse(4)),
-            Action(SpathaCodec.Mouse(8)), Action(SpathaCodec.Mouse(16)),
+            Action(L701Codec.Mouse(1)), Action(L701Codec.Mouse(2)), Action(L701Codec.Mouse(4)),
+            Action(L701Codec.Mouse(8)), Action(L701Codec.Mouse(16)),
             Action(DpiButton), Action(WheelUp), Action(WheelDown), Action(Disabled),
         };
         var combos = Enumerable.Range(FirstCarrier, LastCarrier - FirstCarrier + 1)
             .Select(u => Action(Key(0, (byte)u))).ToList();
-        var media = MediaKeys.Select(m => Action(SpathaCodec.Media(m.Usage), m.Name)).ToList();
+        var media = MediaKeys.Select(m => Action(L701Codec.Media(m.Usage), m.Name)).ToList();
 
         // The shared Keyboard list (same keys, names and order as the Spatha X), then lone modifiers.
-        var keys = Devices.Buttons.KeyboardUsages.Select(u => Action(Key(0, u))).ToList();
+        var keys = Shared.Buttons.KeyboardUsages.Select(u => Action(Key(0, u))).ToList();
         for (int i = 0; i < 8; i++) keys.Add(Action(Key((byte)(1 << i))));
 
         return new List<ActionGroup>
@@ -268,7 +271,7 @@ public sealed class SpathaDevice : IMouseDevice
     }
 
     public IReadOnlyCollection<ushort> BoundCombos => !IsReady ? Array.Empty<ushort>() :
-        Enumerable.Range(0, SpathaCodec.ButtonSlots)
+        Enumerable.Range(0, L701Codec.ButtonSlots)
             .Select(i => CarrierOf(_block.AsSpan(OffButtons + 5 * i, 5).ToArray()))
             .Where(c => c != 0).Select(c => (ushort)c).ToHashSet();
 
@@ -286,7 +289,7 @@ public sealed class SpathaDevice : IMouseDevice
     }
 
     public void ResetBindings() => WriteProfile(b =>
-        Array.Copy(FactoryProfile, OffButtons, b, OffButtons, 5 * SpathaCodec.ButtonSlots));
+        Array.Copy(FactoryProfile, OffButtons, b, OffButtons, 5 * L701Codec.ButtonSlots));
 
     // ---- DPI -----------------------------------------------------------
 
@@ -411,7 +414,7 @@ public sealed class SpathaDevice : IMouseDevice
 
     // ---- export / import -----------------------------------------------
 
-    private const int ButtonBytes = 5 * SpathaCodec.ButtonSlots;
+    private const int ButtonBytes = 5 * L701Codec.ButtonSlots;
 
     /// <summary>The DPI and button bytes of any profile, read straight from memory
     /// (no profile switch needed). Other offsets are left zero.</summary>
@@ -434,8 +437,8 @@ public sealed class SpathaDevice : IMouseDevice
             Index = profile,
             Dpi = { DpiFromRaw(b[OffDpi1X]), DpiFromRaw(b[OffDpi2X]) },
         };
-        for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
-            p.Buttons[Devices.Buttons.SpathaSlots[i]] = ToPortable(b.AsSpan(OffButtons + 5 * i, 5).ToArray());
+        for (int i = 0; i < L701Codec.ButtonSlots; i++)
+            p.Buttons[Shared.Buttons.SpathaSlots[i]] = ToPortable(b.AsSpan(OffButtons + 5 * i, 5).ToArray());
         return p;
     }
 
@@ -463,13 +466,13 @@ public sealed class SpathaDevice : IMouseDevice
         // Key combinations become combos (F13-F24) as on the Spatha X. Carriers bound to
         // buttons this import leaves alone stay as they are.
         var busy = new HashSet<ushort>(report.ReservedCarriers);
-        for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
-            if (!data.Buttons.ContainsKey(Devices.Buttons.SpathaSlots[i]))
+        for (int i = 0; i < L701Codec.ButtonSlots; i++)
+            if (!data.Buttons.ContainsKey(Shared.Buttons.SpathaSlots[i]))
                 if (CarrierOf(current.AsSpan(OffButtons + 5 * i, 5).ToArray()) is byte c && c != 0) busy.Add(c);
 
-        for (int i = 0; i < SpathaCodec.ButtonSlots; i++)
+        for (int i = 0; i < L701Codec.ButtonSlots; i++)
         {
-            string id = Devices.Buttons.SpathaSlots[i];
+            string id = Shared.Buttons.SpathaSlots[i];
             if (!data.Buttons.TryGetValue(id, out var action)) continue;
             // Already does that (the mouse keeps stray bytes after some codes): leave it.
             if (ToPortable(current.AsSpan(OffButtons + 5 * i, 5).ToArray()).SameAs(action)) continue;
@@ -478,13 +481,13 @@ public sealed class SpathaDevice : IMouseDevice
                 if (AllocateCombo(action, busy, report) is ushort carrier)
                     Key(0, (byte)carrier).CopyTo(wanted, OffButtons + 5 * i);
                 else
-                    report.Note($"{where}: {Devices.Buttons.Name(id)}: no free combo slot (F13-F24) left, left unchanged.");
+                    report.Note($"{where}: {Shared.Buttons.Name(id)}: no free combo slot (F13-F24) left, left unchanged.");
                 continue;
             }
             var bytes = FromPortable(action, out string? why);
             if (bytes is null)
             {
-                report.Note($"{where}: {Devices.Buttons.Name(id)}: {why}, left unchanged.");
+                report.Note($"{where}: {Shared.Buttons.Name(id)}: {why}, left unchanged.");
                 continue;
             }
             bytes.CopyTo(wanted, OffButtons + 5 * i);
@@ -557,11 +560,11 @@ public sealed class SpathaDevice : IMouseDevice
             case "wheel": return (byte[])(a.Button == "down" ? WheelDown : WheelUp).Clone();
             case "mouse":
                 foreach (var (mask, name) in PortableMouse)
-                    if (name == a.Button) return SpathaCodec.Mouse(mask);
+                    if (name == a.Button) return L701Codec.Mouse(mask);
                 break;
             case "media":
                 foreach (var (usage, name) in PortableMedia)
-                    if (name == a.Media) return SpathaCodec.Media(usage);
+                    if (name == a.Media) return L701Codec.Media(usage);
                 break;
             case "key":
             {
@@ -573,7 +576,7 @@ public sealed class SpathaDevice : IMouseDevice
             case "raw" when a.Model == "Spatha" && a.Raw?.Length == 10:
                 return Convert.FromHexString(a.Raw);
             case "side":
-                why = $"\"{Devices.Buttons.Name(a.Button ?? "")}\" as a function only exists on the Spatha X";
+                why = $"\"{Shared.Buttons.Name(a.Button ?? "")}\" as a function only exists on the Spatha X";
                 return null;
             case "double_click": why = "double click only exists on the Spatha X"; return null;
             case "target_focus": why = "target focus only exists on the Spatha X"; return null;
@@ -597,10 +600,10 @@ public sealed class SpathaDevice : IMouseDevice
         List<string> paths;
         try
         {
-            var me = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId)
+            var me = DeviceList.Local.GetHidDevices(L701Discovery.VendorId)
                 .FirstOrDefault(d => d.DevicePath.Equals(_eventPath, StringComparison.OrdinalIgnoreCase));
-            int pid = me?.ProductID ?? (_wired ? SpathaDiscovery.PidWired : SpathaDiscovery.PidDock);
-            paths = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId, pid)
+            int pid = me?.ProductID ?? (_wired ? L701Discovery.PidWired : L701Discovery.PidDock);
+            paths = DeviceList.Local.GetHidDevices(L701Discovery.VendorId, pid)
                 .Where(d => !d.DevicePath.EndsWith("\\kbd", StringComparison.OrdinalIgnoreCase))
                 .Where(d => { try { return d.GetMaxInputReportLength() > 0; } catch { return false; } })
                 .Select(d => d.DevicePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -622,7 +625,7 @@ public sealed class SpathaDevice : IMouseDevice
     {
         try
         {
-            var dev = DeviceList.Local.GetHidDevices(SpathaDiscovery.VendorId)
+            var dev = DeviceList.Local.GetHidDevices(L701Discovery.VendorId)
                 .FirstOrDefault(d => d.DevicePath.Equals(path, StringComparison.OrdinalIgnoreCase));
             if (dev is null) return null;
             var cfg = new OpenConfiguration();

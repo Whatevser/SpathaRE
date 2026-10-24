@@ -1,7 +1,9 @@
+// Spatha X: HID plumbing under AsusMouse (HidSharp on Windows), from G-Helper.
+
 using System.ComponentModel;
 using HidSharp;
 
-namespace SpathaRE.Core.Usb
+namespace SpathaRE.Core.SpathaX
 {
     internal class WindowsUsbProvider : UsbProvider
     {

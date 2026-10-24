@@ -1,6 +1,6 @@
 using System.Drawing;
-using SpathaRE.Core.Devices;
-using SpathaRE.Core.Spatha;
+using SpathaRE.Core.Shared;
+using SpathaRE.Core.SpathaL701;
 
 // Simulated original Spatha, behaving like the firmware decoded from Armoury's
 // DLLs: report 0x0C, replies start with B0 (no report-id echo), B1 = busy.
@@ -11,17 +11,17 @@ void Check(bool ok, string what) { if (!ok) failures.Add(what); Console.WriteLin
 
 Logger.FileLogging = false;
 
-SpathaProtocol NewMouse(out FakeSpatha fake, bool echoReportId = false)
+L701Protocol NewMouse(out FakeSpatha fake, bool echoReportId = false)
 {
     fake = new FakeSpatha { EchoReportId = echoReportId };
-    return new SpathaProtocol(fake) { SettleMs = 0, PollMs = 0 };
+    return new L701Protocol(fake) { SettleMs = 0, PollMs = 0 };
 }
 
 // ---- protocol ----
 {
     var p = NewMouse(out var fake);
     Check(p.ReadByte(0x19) == 0x60, "read profile register");
-    Check(p.Read(0x100, 6).SequenceEqual(SpathaCodec.FactoryProfile.Take(6)), "read4 + read1 mix");
+    Check(p.Read(0x100, 6).SequenceEqual(L701Codec.FactoryProfile.Take(6)), "read4 + read1 mix");
     p.WriteByte(0x104, 0x42);
     Check(fake.Mem[0x104] == 0x42, "write byte");
     Check(fake.BusyServed > 0, "busy replies were retried");
@@ -40,24 +40,24 @@ SpathaProtocol NewMouse(out FakeSpatha fake, bool echoReportId = false)
 {
     var p = NewMouse(out var fake);
     fake.StaleReplies = 3;
-    Check(p.ReadByte(0x1C9) == SpathaCodec.FactoryProfile[0xC9], "stale replies for other addresses are skipped");
+    Check(p.ReadByte(0x1C9) == L701Codec.FactoryProfile[0xC9], "stale replies for other addresses are skipped");
 }
 
 // ---- codec ----
-Check(SpathaCodec.DpiFromRaw(31) == 1600 && SpathaCodec.DpiFromRaw(103) == 5200, "DPI scale (confirmed on hardware)");
-Check(SpathaCodec.RawFromDpi(8200) == 163 && SpathaCodec.RawFromDpi(50) == 0, "DPI range");
-Check(SpathaCodec.Describe(SpathaCodec.Key(0x03, 0x29)) == "Ctrl+Shift+Esc", "describe shortcut");
-Check(SpathaCodec.Describe(SpathaCodec.Key(0, 0x2A)) == "Backspace", "describe Backspace");
-Check(SpathaCodec.Describe(SpathaCodec.Media(0xE9)) == "Volume up", "describe media");
-Check(SpathaCodec.Describe(SpathaCodec.DpiButton) == "DPI switch", "describe DPI");
-Check(SpathaCodec.Describe(SpathaCodec.WheelDown) == "Wheel down", "describe wheel down");
-Check(SpathaCodec.Describe(SpathaCodec.Mouse(4)) == "Wheel click", "describe wheel click");
-Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
+Check(L701Codec.DpiFromRaw(31) == 1600 && L701Codec.DpiFromRaw(103) == 5200, "DPI scale (confirmed on hardware)");
+Check(L701Codec.RawFromDpi(8200) == 163 && L701Codec.RawFromDpi(50) == 0, "DPI range");
+Check(L701Codec.Describe(L701Codec.Key(0x03, 0x29)) == "Ctrl+Shift+Esc", "describe shortcut");
+Check(L701Codec.Describe(L701Codec.Key(0, 0x2A)) == "Backspace", "describe Backspace");
+Check(L701Codec.Describe(L701Codec.Media(0xE9)) == "Volume up", "describe media");
+Check(L701Codec.Describe(L701Codec.DpiButton) == "DPI switch", "describe DPI");
+Check(L701Codec.Describe(L701Codec.WheelDown) == "Wheel down", "describe wheel down");
+Check(L701Codec.Describe(L701Codec.Mouse(4)) == "Wheel click", "describe wheel click");
+Check(L701Codec.FactoryProfile.Length == 0xCD, "factory profile length");
 
 // ---- device ----
 {
     var p = NewMouse(out var fake);
-    var d = new SpathaDevice(p, wired: false);
+    var d = new L701Device(p, wired: false);
     d.Synchronize();
     Check(d.IsReady && d.Profile == 0 && d.ProfileCount == 6, "sync reads profile register");
     Check(d.ProfileName(0) == "Profile 1", "Armoury's stored \"Profile1\" shows as \"Profile 1\", like the Spatha X");
@@ -74,12 +74,12 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     Check(fake.Mem.Skip(0x100 + 0x83 + 35).Take(5).SequenceEqual(new byte[] { 2, 0, 0x2A, 0, 0 }), "bind Backspace to a side button");
     Check(d.GetBinding(7)?.Label == "Backspace", "binding read back");
 
-    var bytes = SpathaCodec.Key(0x01, 0x06);
+    var bytes = L701Codec.Key(0x01, 0x06);
     d.SetBinding(8, new ButtonAction("ctrl-c", "Ctrl+C", bytes));
     Check(d.GetBinding(8)?.Label == "Ctrl+C", "native shortcut binding");
 
     d.ResetBindings();
-    Check(fake.Mem.Skip(0x183).Take(70).SequenceEqual(SpathaCodec.FactoryProfile.Skip(0x83).Take(70)), "reset restores factory buttons");
+    Check(fake.Mem.Skip(0x183).Take(70).SequenceEqual(L701Codec.FactoryProfile.Skip(0x83).Take(70)), "reset restores factory buttons");
 
     int sentBefore = fake.Sent.Count(s => s[1] == 0xDE);
     d.ApplySetting("poll_wired", 2);
@@ -108,7 +108,7 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     Check(d.Profile == 5 && d.IsProfileReadOnly(5), "Default profile is read-only");
     bool threw = false;
     try { d.SetDpi(0, 800, null); } catch (InvalidOperationException) { threw = true; }
-    Check(threw && fake.Mem[0x604] == SpathaCodec.FactoryProfile[4], "writes to Default are refused");
+    Check(threw && fake.Mem[0x604] == L701Codec.FactoryProfile[4], "writes to Default are refused");
 
     fake.Mem[0x19] = 0x62;
     Check(d.PollProfileChanged() && d.Profile == 2, "detects a profile switch made on the mouse");
@@ -116,7 +116,7 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
 {
     var p = NewMouse(out var fake);
     fake.DropWritesTo = 0x104;
-    var d = new SpathaDevice(p, wired: true);
+    var d = new L701Device(p, wired: true);
     d.Synchronize();
     bool threw = false;
     try { d.SetDpi(0, 3200, null); } catch (IOException) { threw = true; }
@@ -126,12 +126,12 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
 {
     var p = NewMouse(out var fake);
     fake.NoBattery = true;
-    var d = new SpathaDevice(p, wired: true);
+    var d = new L701Device(p, wired: true);
     d.Synchronize();
     Check(!d.HasBattery && d.IsReady, "wired: battery hidden when the cable doesn't answer it");
     fake.NoBattery = false;
     fake.Charging = true;
-    var w = new SpathaDevice(NewMouse(out var f2), wired: false);
+    var w = new L701Device(NewMouse(out var f2), wired: false);
     f2.Charging = true;
     w.Synchronize();
     Check(w.Charging, "dock: charging flag read");
@@ -139,24 +139,24 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
 
 {
     var p = NewMouse(out var fake);
-    var d = new SpathaDevice(p, wired: false);
+    var d = new L701Device(p, wired: false);
     d.Synchronize();
     fake.Asleep = true;
     Check(!d.PollProfileChanged() && d.IsReady, "one missed reply (patchy wireless) doesn't mark the mouse asleep");
-    SpathaDevice.AsleepAfter = TimeSpan.Zero;
+    L701Device.AsleepAfter = TimeSpan.Zero;
     Check(!d.PollProfileChanged() && !d.IsReady, "silent for longer than AsleepAfter: shown as asleep");
     Check(!d.PollWake() && !d.IsReady, "wake check while still asleep");
     fake.Asleep = false;
     int reads = fake.Sent.Count;
     Check(d.PollWake() && d.IsReady, "wake check brings it back");
     Check(fake.Sent.Count - reads <= 3, "waking with the same profile costs a probe + battery read, not a full re-read");
-    SpathaDevice.AsleepAfter = TimeSpan.FromSeconds(60);
+    L701Device.AsleepAfter = TimeSpan.FromSeconds(60);
 }
 
 // ---- combos: same F13-F24 model as the Spatha X ----
 {
     var p = NewMouse(out var fake);
-    var d = new SpathaDevice(p, wired: true);
+    var d = new L701Device(p, wired: true);
     d.Synchronize();
     Check(d.ActionCatalog.Select(g => g.Name).SequenceEqual(new[] { "Mouse", "Combos", "Multimedia", "Keyboard" }),
           "categories and order match the Spatha X");
@@ -164,27 +164,27 @@ Check(SpathaCodec.FactoryProfile.Length == 0xCD, "factory profile length");
     var combos = d.ActionCatalog[1].Actions;
     Check(combos.Count == 12 && combos[0].Label == "F13", "12 combos (labels come from the app)");
     Check(!d.ActionCatalog[3].Actions.Any(a => a.Label == "F13"), "F13-F24 are only listed as combos");
-    SpathaDevice.ComboLabel = u => $"Alt+Tab (F{13 + u - 0x68})";
+    L701Device.ComboLabel = u => $"Alt+Tab (F{13 + u - 0x68})";
     d.SetBinding(10, d.ActionCatalog[1].Actions[0]);
     Check(fake.Mem.Skip(0x183 + 50).Take(5).SequenceEqual(new byte[] { 2, 0, 0x68, 0, 0 }), "a combo binds the F13 carrier");
     Check(d.GetBinding(10)?.Label == "Alt+Tab (F13)" && d.BoundCombos.SequenceEqual(new ushort[] { 0x68 }), "combo label and bound carriers");
 
-    SpathaDevice.AllocateCombo = (a, busy, r) => { ushort c = 0x69; while (busy.Contains(c)) c++; busy.Add(c); return c; };
+    L701Device.AllocateCombo = (a, busy, r) => { ushort c = 0x69; while (busy.Contains(c)) c++; busy.Add(c); return c; };
     var data = new PortableProfile { Buttons = { ["side3"] = PortableAction.Key(0x03, new byte[] { 0x17 }) } };   // Ctrl+Shift+T
     d.ImportProfile(0, data, new ImportReport());
     Check(fake.Mem.Skip(0x183 + 30).Take(5).SequenceEqual(new byte[] { 2, 0, 0x69, 0, 0 }), "imported key combination becomes a combo, skipping the one in use");
-    SpathaDevice.ComboLabel = null;
-    SpathaDevice.AllocateCombo = null;
+    L701Device.ComboLabel = null;
+    L701Device.AllocateCombo = null;
 }
 
 // ---- names shared by both models ----
-Check(SpathaCodec.Describe(SpathaCodec.Key(0x02)) == "Left Shift", "lone modifier named like the key list (Left Shift, not Shift)");
-Check(SpathaCodec.Describe(SpathaCodec.Key(0x08, 0x2B)) == "Win+Tab", "combination uses short modifier names");
+Check(L701Codec.Describe(L701Codec.Key(0x02)) == "Left Shift", "lone modifier named like the key list (Left Shift, not Shift)");
+Check(L701Codec.Describe(L701Codec.Key(0x08, 0x2B)) == "Win+Tab", "combination uses short modifier names");
 Check(Buttons.WithoutCarrier("Win+Tab (F18)") == "Win+Tab" && Buttons.WithoutCarrier("F5") == "F5", "button map hides the combo's F-key");
 Check(Buttons.ProfileName(2, "Sniper") == "Sniper" && Buttons.ProfileName(2, "") == "Profile 3", "real profile names are kept");
 Check(Buttons.SlotName(DeviceModel.Spatha, 10) == "Side button 1" && Buttons.SlotName(DeviceModel.SpathaX, 8) == "Side button 1",
       "side button 1 has the same name on both models");
-Check(Enumerable.Range(0, 14).All(i => SpathaCodec.SlotNames[i] == Buttons.SlotName(DeviceModel.Spatha, i)),
+Check(Enumerable.Range(0, 14).All(i => L701Codec.SlotNames[i] == Buttons.SlotName(DeviceModel.Spatha, i)),
       "codec slot names match the shared table");
 Check(Buttons.ProfileSwitchSlots(DeviceModel.Spatha, 1).SequenceEqual(new[] { 5, 6 }), "profile 2 = DPI + side 3 (Spatha slots 5, 6)");
 Check(Buttons.ProfileSwitchSlots(DeviceModel.SpathaX, 2).SequenceEqual(new[] { 5, 13 }), "profile 3 = DPI + side 6 (X slots 5, 13)");
@@ -193,7 +193,7 @@ Check(Buttons.ProfileSwitchSlots(DeviceModel.Spatha, 5).SequenceEqual(new[] { 5,
 // ---- export / import ----
 {
     var p = NewMouse(out var fake);
-    var d = new SpathaDevice(p, wired: true);
+    var d = new L701Device(p, wired: true);
     d.Synchronize();
     var exported = d.ExportProfile(2);
     Check(exported.Dpi.SequenceEqual(new[] { 1650, 450 }) && exported.Buttons.Count == 14, "export another profile without switching");
@@ -218,13 +218,13 @@ Check(Buttons.ProfileSwitchSlots(DeviceModel.Spatha, 5).SequenceEqual(new[] { 5,
     Check(fake.Mem[b + 4] == 15 && fake.Mem[b + 6] == 31, "import sets the first two DPI stages");
     Check(fake.Mem.Skip(b + 0x83 + 5 * 10).Take(5).SequenceEqual(new byte[] { 2, 1, 6, 0, 0 }), "Ctrl+C from the X lands as a native shortcut on side 1");
     Check(fake.Mem.Skip(b + 0x83 + 5 * 3).Take(5).SequenceEqual(new byte[] { 3, 0xE9, 0, 0, 0 }), "media key mapped");
-    Check(fake.Mem.Skip(b + 0x83 + 5 * 8).Take(5).SequenceEqual(SpathaCodec.FactoryProfile.Skip(0x83 + 5 * 8).Take(5)), "X-only function left unchanged");
+    Check(fake.Mem.Skip(b + 0x83 + 5 * 8).Take(5).SequenceEqual(L701Codec.FactoryProfile.Skip(0x83 + 5 * 8).Take(5)), "X-only function left unchanged");
     Check(report.Notes.Any(n => n.Contains("Side button 2")) && report.Notes.Any(n => n.Contains("2 DPI stages")), "report lists what was skipped");
     Check(fake.Sent.Last()[1] == 0xC4 && fake.Sent.Last()[2] == 0x00, "import commits");
 
     var ro = new ImportReport();
     d.ImportProfile(5, parsed.Profiles[0], ro);
-    Check(ro.Written == 0 && fake.Mem[0x604] == SpathaCodec.FactoryProfile[4], "import never writes the Default profile");
+    Check(ro.Written == 0 && fake.Mem[0x604] == L701Codec.FactoryProfile[4], "import never writes the Default profile");
 
     var round = new ImportReport();
     d.ImportProfile(0, d.ExportProfile(3), round);
@@ -236,7 +236,7 @@ Check(Buttons.ProfileSwitchSlots(DeviceModel.Spatha, 5).SequenceEqual(new[] { 5,
 Console.WriteLine(failures.Count == 0 ? "\nALL PASSED" : $"\n{failures.Count} FAILED");
 return failures.Count == 0 ? 0 : 1;
 
-sealed class FakeSpatha : ISpathaTransport
+sealed class FakeSpatha : IL701Transport
 {
     public byte[] Mem = new byte[0x2000];
     public byte ReportId => 0x0C;
@@ -259,7 +259,7 @@ sealed class FakeSpatha : ISpathaTransport
         for (int p = 0; p < 6; p++)
         {
             int b = 0x100 * (p + 1);
-            SpathaCodec.FactoryProfile.CopyTo(Mem, b);
+            L701Codec.FactoryProfile.CopyTo(Mem, b);
             Mem[b + 0xD1] = (byte)name.Length;
             name.CopyTo(Mem, b + 0xD2);
             name[14] = (byte)('2' + p);

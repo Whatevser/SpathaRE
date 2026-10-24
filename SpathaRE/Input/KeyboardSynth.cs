@@ -1,3 +1,5 @@
+// Types key combinations (SendInput) for ComboDispatcher.
+
 using System.Runtime.InteropServices;
 using Keys = System.Windows.Forms.Keys;
 

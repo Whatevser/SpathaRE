@@ -2,7 +2,6 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows;
 using SpathaRE.Core;
-using SpathaRE.Hotkeys;
 using SpathaRE.Input;
 using SpathaRE.UI;
 using Forms = System.Windows.Forms;
@@ -43,9 +42,9 @@ public partial class App : Application
         MouseManager.BatteryChanged += (_, _) => Dispatcher.BeginInvoke(RefreshTray);
         MouseManager.ProfileChanged += OnProfileChanged;
         // The original Spatha lists and exports the same F13-F24 combos as the Spatha X.
-        SpathaRE.Core.Spatha.SpathaDevice.ComboLabel = u => SpathaRE.Core.Devices.AsusMouseDevice.Label(u);
-        SpathaRE.Core.Spatha.SpathaDevice.ComboKeys = u => SpathaRE.Core.Devices.AsusMouseDevice.CarrierKeys(u);
-        SpathaRE.Core.Spatha.SpathaDevice.AllocateCombo = SpathaRE.Core.Devices.AsusMouseDevice.AllocateCarrier;
+        Core.SpathaL701.L701Device.ComboLabel = u => Combos.Label(u);
+        Core.SpathaL701.L701Device.ComboKeys = u => Combos.KeysOf(u);
+        Core.SpathaL701.L701Device.AllocateCombo = Combos.Allocate;
         MouseManager.Start();
 
         _hotkeys = new HotkeyManager();
@@ -69,7 +68,7 @@ public partial class App : Application
             RefreshTray();
             if (!e.External || !AppConfig.GetBool("notify_profile_change", true)) return;
 
-            _tray.BalloonTipTitle = $"{(sender as SpathaRE.Core.Devices.IMouseDevice)?.Name}: profile {e.CurrentProfile + 1}";
+            _tray.BalloonTipTitle = $"{(sender as SpathaRE.Core.Shared.IMouseDevice)?.Name}: profile {e.CurrentProfile + 1}";
             _tray.BalloonTipText = "Switched on the mouse";
             _tray.ShowBalloonTip(1500);
         });

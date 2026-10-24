@@ -1,4 +1,6 @@
-namespace SpathaRE.Core.Usb
+// Spatha X: HID plumbing under AsusMouse, from G-Helper.
+
+namespace SpathaRE.Core.SpathaX
 {
     public abstract class UsbProvider : IDisposable
     {

@@ -1,6 +1,9 @@
+// Shared by both mice: the one interface the UI talks to (IMouseDevice) and the
+// settings/lighting/button types it uses. Each model implements it in its own folder.
+
 using System.Drawing;
 
-namespace SpathaRE.Core.Devices;
+namespace SpathaRE.Core.Shared;
 
 /// <summary>Which physical mouse a device is; selects the button-map artwork.</summary>
 public enum DeviceModel

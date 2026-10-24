@@ -38,12 +38,13 @@
          global usings. System.Windows.Forms.Application then collides with
          System.Windows.Application in every WPF file. Drop it; the `Forms`
          alias covers the handful of WinForms types we actually use.
-         System.Drawing stays: vendored AsusMouse.cs relies on it for Color. -->
+         System.Drawing goes too (its Color clashes with WPF's); files that need it,
+         like AsusMouse.cs, import it themselves. -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
 
-    <!-- The WinForms+WPF implicit-using set omits System.IO, which the vendored
-         HID code needs for IOException. Add it globally rather than editing
+    <!-- The WinForms+WPF implicit-using set omits System.IO, which the HID code
+         from G-Helper needs for IOException. Add it globally rather than editing
          four files. -->
     <Using Include="System.IO" />
   </ItemGroup>

@@ -1,16 +1,18 @@
+// App-wide: finds both kinds of mouse, keeps them polled, and runs every operation
+// the UI asks for. The only place that knows about both models.
+
 using System.Drawing;
 using HidSharp;
-using SpathaRE.Core.Devices;
-using SpathaRE.Core.Mouse;
-using SpathaRE.Core.Mouse.Models;
-using SpathaRE.Core.Spatha;
+using SpathaRE.Core.Shared;
+using SpathaRE.Core.SpathaX;
+using SpathaRE.Core.SpathaL701;
 
 namespace SpathaRE.Core;
 
 /// <summary>
 /// Detection, hotplug, battery polling, onboard-profile tracking and every
 /// device operation the UI needs. Devices are exposed as IMouseDevice: the
-/// Spatha X through AsusMouseDevice, the original Spatha through SpathaDevice.
+/// Spatha X through SpathaXDevice, the original Spatha through L701Device.
 /// All USB I/O runs off the UI thread, serialised per device.
 /// </summary>
 public static class MouseManager
@@ -35,7 +37,7 @@ public static class MouseManager
 
     private static readonly System.Timers.Timer _hotplugDebounce = new(1000) { AutoReset = false };
     /// <summary>Battery and charging state. One request per mouse, so it can run often; the
-    /// original Spatha's dock also reports put-on / taken-off at once (see SpathaDevice).</summary>
+    /// original Spatha's dock also reports put-on / taken-off at once (see L701Device).</summary>
     private static readonly System.Timers.Timer _batteryPoll = new(10_000) { AutoReset = true };
     private static readonly System.Timers.Timer _profilePoll = new(1500) { AutoReset = true };
     /// <summary>A Spatha dock with the mouse switched off doesn't answer, and switching the
@@ -67,8 +69,8 @@ public static class MouseManager
             try
             {
                 bool have;
-                lock (_lock) have = _devices.OfType<SpathaDevice>().Any();
-                if (!have && SpathaDiscovery.AnyPresent()) lock (_detectLock) DetectSpatha();
+                lock (_lock) have = _devices.OfType<L701Device>().Any();
+                if (!have && L701Discovery.AnyPresent()) lock (_detectLock) DetectSpatha();
             }
             finally { if (_running) _spathaRetry.Start(); }
         });
@@ -134,7 +136,7 @@ public static class MouseManager
 
     private static IEnumerable<AsusMouse> AsusModels()
     {
-        yield return new SpathaX();
+        yield return new SpathaXWireless();
         yield return new SpathaXWired();
     }
 
@@ -158,7 +160,7 @@ public static class MouseManager
             {
                 if (!candidate.IsDeviceConnected()) { candidate.Dispose(); continue; }
                 bool known;
-                lock (_lock) known = _devices.OfType<AsusMouseDevice>().Any(d => d.Mouse.Equals(candidate));
+                lock (_lock) known = _devices.OfType<SpathaXDevice>().Any(d => d.Mouse.Equals(candidate));
                 if (known) { candidate.Dispose(); continue; }
                 ConnectAsus(candidate);
             }
@@ -177,7 +179,7 @@ public static class MouseManager
             try { mouse.SynchronizeDevice(); } catch (Exception e) { Logger.WriteLine("Sync error: " + e.Message); }
         }
 
-        var dev = new AsusMouseDevice(mouse);
+        var dev = new SpathaXDevice(mouse);
         mouse.Disconnect += (_, _) => Remove(dev);
         mouse.MouseReadyChanged += (_, _) => DevicesChanged?.Invoke(dev, EventArgs.Empty);
         mouse.BatteryUpdated += (_, _) => BatteryChanged?.Invoke(dev, EventArgs.Empty);
@@ -188,13 +190,13 @@ public static class MouseManager
     private static void DetectSpatha()
     {
         bool have;
-        lock (_lock) have = _devices.OfType<SpathaDevice>().Any();
-        if (have || !SpathaDiscovery.AnyPresent()) return;
+        lock (_lock) have = _devices.OfType<L701Device>().Any();
+        if (have || !L701Discovery.AnyPresent()) return;
 
-        var found = SpathaDiscovery.Find();
+        var found = L701Discovery.Find();
         if (found is null) { Logger.WriteLine("Spatha present but no collection answered"); return; }
 
-        var dev = new SpathaDevice(found.Value.Protocol, found.Value.Wired, found.Value.Path);
+        var dev = new L701Device(found.Value.Protocol, found.Value.Wired, found.Value.Path);
         try { dev.Synchronize(); }
         catch (Exception e) { Logger.WriteLine("Spatha sync failed: " + e.Message); }
 
@@ -212,8 +214,8 @@ public static class MouseManager
     /// <summary>The Spatha has no disconnect event of its own; drop it when its USB device is gone.</summary>
     private static void DropDisconnected()
     {
-        foreach (var d in Snapshot().OfType<SpathaDevice>())
-            if (!SpathaDiscovery.AnyPresent()) Remove(d);
+        foreach (var d in Snapshot().OfType<L701Device>())
+            if (!L701Discovery.AnyPresent()) Remove(d);
     }
 
     private static void Add(IMouseDevice dev)
@@ -315,7 +317,7 @@ public static class MouseManager
     {
         if (!d.IsReady)
         {
-            if (d is SpathaDevice) TryWake(d);
+            if (d is L701Device) TryWake(d);
             return;
         }
         if (d.ProfileCount < 2) return;

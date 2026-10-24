@@ -7,8 +7,8 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using SpathaRE.Core;
-using SpathaRE.Core.Devices;
-using SpathaRE.Core.Mouse;
+using SpathaRE.Core.Shared;
+using SpathaRE.Core.SpathaX;
 using SpathaRE.Input;
 using DColor = System.Drawing.Color;
 using Keys = System.Windows.Forms.Keys;
@@ -403,8 +403,8 @@ public partial class SettingsWindow : Window
     /// <summary>Combo carrier (0x68-0x73) of a binding on either mouse, or 0.</summary>
     private static ushort CarrierOf(ButtonAction? a) => a?.Payload switch
     {
-        ushort u when AsusMouseDevice.IsCarrier(u) => u,
-        byte[] b => Core.Spatha.SpathaDevice.CarrierOf(b),
+        ushort u when Combos.IsCarrier(u) => u,
+        byte[] b => Core.SpathaL701.L701Device.CarrierOf(b),
         _ => 0,
     };
 
@@ -414,7 +414,7 @@ public partial class SettingsWindow : Window
         var d = _dev;
         var current = d is not null && Map.SelectedSlot >= 0 ? d.GetBinding(Map.SelectedSlot) : null;
         ushort code = CarrierOf(current);
-        bool isCombo = code != 0 && AsusMouse.CombosByCode.ContainsKey(code);
+        bool isCombo = code != 0 && Combos.Get(code) is not null;
         bool comboTab = _category == "Combos";
         if (!isCombo && !comboTab)
         {
@@ -435,8 +435,8 @@ public partial class SettingsWindow : Window
         }
 
         _editingCombo = code;
-        var combo = AsusMouse.CombosByCode[_editingCombo];
-        string carrier = AsusMouseDevice.CarrierKey(_editingCombo);
+        var combo = Combos.Get(_editingCombo)!;
+        string carrier = Combos.CarrierKey(_editingCombo);
         ComboTitle.Text = $"EDIT COMBO {carrier}";
         ComboHelp.Text = $"This button makes the mouse send {carrier}, and SpathaRE types the keys below. " +
                          "1. Click the box.  2. Press the new keys together.  3. Save keys. " +
@@ -446,8 +446,8 @@ public partial class SettingsWindow : Window
         _comboKeys.Clear();
         _comboTyping = false;
         ComboRecorder.IsReadOnly = true;
-        ComboRecorder.Text = ComboDispatcher.Describe(combo.ResolveCommand());
-        ComboStatus.Text = AppConfig.GetString(combo.ConfigKey) is null ? "Default keys." : "Custom keys.";
+        ComboRecorder.Text = Combos.Describe(combo.Command);
+        ComboStatus.Text = combo.IsCustom ? "Custom keys." : "Default keys.";
     }
 
     /// <summary>True after Backspace in an empty recorder: the box takes typed text like "Win+Shift+S".</summary>
@@ -473,13 +473,13 @@ public partial class SettingsWindow : Window
         }
         var k = (Keys)KeyInterop.VirtualKeyFromKey(key);
         if (!_comboKeys.Contains(k) && _comboKeys.Count < 6) _comboKeys.Add(k);
-        ComboRecorder.Text = ComboDispatcher.Describe(Ordered(_comboKeys));
+        ComboRecorder.Text = Combos.Describe(Ordered(_comboKeys));
     }
 
     private void SaveCombo()
     {
-        if (_editingCombo == 0 || !AsusMouse.CombosByCode.TryGetValue(_editingCombo, out var combo)) return;
-        var keys = _comboTyping ? ComboDispatcher.ParseCommand(ComboRecorder.Text.Trim()) : Ordered(_comboKeys);
+        if (_editingCombo == 0 || Combos.Get(_editingCombo) is not { } combo) return;
+        var keys = _comboTyping ? Combos.ParseCommand(ComboRecorder.Text.Trim()) : Ordered(_comboKeys);
         if (keys.Count == 0)
         {
             ComboStatus.Text = _comboTyping
@@ -487,17 +487,17 @@ public partial class SettingsWindow : Window
                 : "No keys yet: click the box and press them.";
             return;
         }
-        AppConfig.Set(combo.ConfigKey, ComboDispatcher.ToCommand(keys));
-        string saved = $"Saved. {AsusMouseDevice.CarrierKey(_editingCombo)} now types {ComboDispatcher.Describe(keys)}.";
+        AppConfig.Set(combo.ConfigKey, Combos.ToCommand(keys));
+        string saved = $"Saved. {Combos.CarrierKey(_editingCombo)} now types {Combos.Describe(keys)}.";
         AfterComboChange();
         ComboStatus.Text = saved;
     }
 
     private void ResetCombo()
     {
-        if (_editingCombo == 0 || !AsusMouse.CombosByCode.TryGetValue(_editingCombo, out var combo)) return;
+        if (_editingCombo == 0 || Combos.Get(_editingCombo) is not { } combo) return;
         AppConfig.Remove(combo.ConfigKey);
-        string done = $"Back to the default, {ComboDispatcher.Describe(combo.DefaultCommand)}.";
+        string done = $"Back to the default, {Combos.Describe(combo.DefaultCommand)}.";
         AfterComboChange();
         ComboStatus.Text = done;
     }

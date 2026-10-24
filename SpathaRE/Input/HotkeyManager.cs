@@ -1,9 +1,11 @@
+// Global hotkeys (profile switching, tray popup, combo keys).
+
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 
-namespace SpathaRE.Hotkeys;
+namespace SpathaRE.Input;
 
 /// <summary>
 /// Global hotkeys via RegisterHotKey. Thread-affine: every call must happen on

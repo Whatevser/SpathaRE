@@ -1,11 +1,13 @@
+// App-wide: the settings file, %APPDATA%\SpathaRE\config.json.
+
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
 /// <summary>
 /// Flat JSON key/value store at %APPDATA%\SpathaRE\config.json.
-/// Deliberately global-namespace and API-compatible with G-Helper's AppConfig
-/// so the vendored AsusMouse.cs needs no edits.
+/// Global namespace and the same methods as G-Helper's AppConfig, so the Spatha X
+/// code taken from G-Helper (AsusMouse.cs) uses it unchanged.
 /// </summary>
 public static class AppConfig
 {

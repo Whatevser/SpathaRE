@@ -1,7 +1,9 @@
-namespace SpathaRE.Core.Spatha;
+// Spatha L701 (original): the request/reply commands (read, write, commit, battery...).
+
+namespace SpathaRE.Core.SpathaL701;
 
 /// <summary>One HID collection that carries the Spatha feature reports.</summary>
-public interface ISpathaTransport : IDisposable
+public interface IL701Transport : IDisposable
 {
     /// <summary>Report ID used by this collection (0x0C normally, 0x00 on the mouse collection).</summary>
     byte ReportId { get; }
@@ -16,13 +18,13 @@ public interface ISpathaTransport : IDisposable
 /// The firmware doesn't echo the report ID, but some stacks add it, so both
 /// layouts are accepted.
 /// </summary>
-public sealed class SpathaProtocol : IDisposable
+public sealed class L701Protocol : IDisposable
 {
     private const byte Ack = 0xB0, Busy = 0xB1;
     private const byte CmdCtrl = 0xC4, CmdRead4 = 0xDD, CmdWrite = 0xDE, CmdRead1 = 0xDF;
     private const byte SubRead = 0xC0, SubWrite = 0xC1;
 
-    private readonly ISpathaTransport _io;
+    private readonly IL701Transport _io;
 
     // Through the dock every request is relayed to the mouse over radio, so a reply
     // can take a few hundred ms (stale replies come back first). These match what
@@ -34,7 +36,7 @@ public sealed class SpathaProtocol : IDisposable
     /// <summary>Reply polls per attempt.</summary>
     public int Polls { get; set; } = 30;
 
-    public SpathaProtocol(ISpathaTransport io) => _io = io;
+    public L701Protocol(IL701Transport io) => _io = io;
 
     public void Dispose() => _io.Dispose();
 
@@ -96,8 +98,8 @@ public sealed class SpathaProtocol : IDisposable
     {
         try
         {
-            var r = Transact(new byte[] { CmdRead1, SpathaCodec.RegProfile, 0, 0, 0 },
-                r => r.Length >= 5 && r[1] == SubRead && r[2] == SpathaCodec.RegProfile && r[3] == 0,
+            var r = Transact(new byte[] { CmdRead1, L701Codec.RegProfile, 0, 0, 0 },
+                r => r.Length >= 5 && r[1] == SubRead && r[2] == L701Codec.RegProfile && r[3] == 0,
                 rounds: 3);
             return r[4];
         }
@@ -175,9 +177,9 @@ public sealed class SpathaProtocol : IDisposable
     /// <summary>Switch the active onboard profile (0-based).</summary>
     public void SetActiveProfile(int profile)
     {
-        byte reg = ReadByte(SpathaCodec.RegProfile);
+        byte reg = ReadByte(L701Codec.RegProfile);
         byte value = (byte)((reg & 0xF0) | (profile & 0x0F));
-        WriteByte(SpathaCodec.RegProfile, value);
+        WriteByte(L701Codec.RegProfile, value);
         Ctrl(0x07, value);
     }
 
@@ -189,7 +191,7 @@ public sealed class SpathaProtocol : IDisposable
             var r = Transact(new byte[] { CmdCtrl, 0x11, 0x00, 0, 0, 0, 0, 0 },
                 r => r.Length >= 7 && r[1] == CmdCtrl, rounds: 2);
             bool charging = r[6] == 1;
-            return (SpathaCodec.BatteryPercent(r[4], charging), r[4], charging);
+            return (L701Codec.BatteryPercent(r[4], charging), r[4], charging);
         }
         catch (TimeoutException) { return null; }
     }

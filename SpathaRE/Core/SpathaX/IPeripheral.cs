@@ -1,5 +1,6 @@
+// Spatha X: G-Helper's peripheral interface that AsusMouse implements.
 
-namespace SpathaRE.Core.Mouse
+namespace SpathaRE.Core.SpathaX
 {
     public enum PeripheralType
     {

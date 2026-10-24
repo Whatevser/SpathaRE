@@ -1,11 +1,13 @@
-namespace SpathaRE.Core.Spatha;
+// Spatha L701 (original): memory layout and value encodings. Pure data, no I/O.
+
+namespace SpathaRE.Core.SpathaL701;
 
 /// <summary>
 /// Memory layout and value encodings of the original ROG Spatha (0x181C / dock
 /// 0x1824). Reverse engineered from Armoury Crate's IfSpatha.dll and confirmed
-/// on hardware; see SpathaRE/PROTOCOL.md for the full write-up.
+/// on hardware; see PROTOCOL.md in the repository root for the full write-up.
 /// </summary>
-public static class SpathaCodec
+public static class L701Codec
 {
     public const byte RegProfile = 0x19;          // (count << 4) | active
     public const int ProfileCount = 6;
@@ -128,14 +130,14 @@ public static class SpathaCodec
     };
 
     /// <summary>HID keyboard usage -> name (shared with the Spatha X).</summary>
-    public static string KeyName(byte usage) => Devices.Buttons.KeyName(usage);
+    public static string KeyName(byte usage) => Shared.Buttons.KeyName(usage);
 
     public static string ModifiersText(byte mods)
     {
         var parts = new List<string>();
         for (int i = 0; i < 8; i++)
-            if ((mods & (1 << i)) != 0 && !parts.Contains(Devices.Buttons.ModifierShortNames[i]))
-                parts.Add(Devices.Buttons.ModifierShortNames[i]);
+            if ((mods & (1 << i)) != 0 && !parts.Contains(Shared.Buttons.ModifierShortNames[i]))
+                parts.Add(Shared.Buttons.ModifierShortNames[i]);
         return string.Join("+", parts);
     }
 
@@ -165,7 +167,7 @@ public static class SpathaCodec
             }
             case 0x02 when b[2] == 0 && b[3] == 0 && b[4] == 0 && System.Numerics.BitOperations.PopCount(b[1]) == 1:
                 // A lone modifier, named like the key list: "Left Shift".
-                return Devices.Buttons.ModifierKeyNames[System.Numerics.BitOperations.TrailingZeroCount(b[1])];
+                return Shared.Buttons.ModifierKeyNames[System.Numerics.BitOperations.TrailingZeroCount(b[1])];
             case 0x02:
             {
                 var parts = new List<string>();

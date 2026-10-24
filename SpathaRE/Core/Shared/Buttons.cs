@@ -1,4 +1,7 @@
-namespace SpathaRE.Core.Devices;
+// Shared by both mice: button ids and names, slot numbering per model, key names,
+// and which buttons switch profile on the mouse itself.
+
+namespace SpathaRE.Core.Shared;
 
 /// <summary>
 /// The physical buttons both Spathas share, with one set of names for both
