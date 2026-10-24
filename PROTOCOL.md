@@ -1,6 +1,16 @@
 # ASUS ROG Spatha (original, non-X) – USB configuration protocol
 
-Reverse engineered from the Armoury Crate Spatha plugin DLLs, with no captures from real hardware:
+Reverse engineered from the Armoury Crate Spatha plugin DLLs, then checked on a real
+Spatha, wired and through its dock:
+
+* **Reading the mouse while using Armoury Crate:** change one setting in Armoury, read the
+  memory back with `tools/python/spatha.py`, and see which bytes moved. That's how the LED
+  zones (logo / wheel / base), effects, battery settings and profile names were matched.
+* **Driving it directly** with `spatha.py`: DPI scale, button slots (`identify`), profile
+  switching, battery and charging (compared against Armoury's display), firmware versions,
+  writes to the Default profile, and the events the dock pushes (`listen`).
+
+The DLLs:
 
 | DLL | What it showed |
 |---|---|
@@ -9,14 +19,17 @@ Reverse engineered from the Armoury Crate Spatha plugin DLLs, with no captures f
 | `SPATHA_SYNC_Dll(_x64).dll` | Aura Sync direct mode, default-LED writer (independently confirms the address map) |
 | `ArmourySDK.dll` | Generic Aura SDK loader, nothing Spatha-specific |
 
-Confidence: **[C]** = read directly from code, **[I]** = inferred from how Armoury uses it. Verify [I] items on a real mouse.
+Confidence: **[C]** = read directly from Armoury's code, **[I]** = inferred from how Armoury uses it,
+"confirmed on hardware" / "hardware" = seen on a real mouse. Not seen yet: the LEDs actually
+lighting (the test mouse's LEDs are dead), so lighting values are matched to Armoury's UI but
+their look is unverified.
 
 ---
 
 ## 1. Transport
 
 * USB `0B05:181C` (wired) and `0B05:1824` (receiver/dock); both PIDs are listed for "Spatha" in Armoury's MouseSDK `config.ini`. `IfSpatha.dll` doesn't check the PID. It matches HID devices whose **bcdDevice** is `0x4200`, `0x4201`, `0xD000` or `0xD002`. `0x42xx` is probably the mouse and `0xD0xx` the RF dongle **[I]**.
-* All traffic uses **HID feature reports** (`HidD_SetFeature` / `HidD_GetFeature`). No interrupt endpoints are involved. **[C]**
+* Settings traffic uses **HID feature reports** (`HidD_SetFeature` / `HidD_GetFeature`). **[C]** The only interrupt traffic is the event input report 3 the mouse/dock pushes (section below; hardware).
 * Normal mode: the HID **keyboard** collection (`GUID_DEVINTERFACE_KEYBOARD`), **report ID `0x0C`**, **10-byte** report (ID + 9). **[C]**
 * Alternate mode, chosen by a flag in Armoury: the mouse collection whose `FeatureReportByteLength == 9`, report ID `0x00`, 9 bytes. **[C]**
 * Requests are `RID CMD p1 p2 p3 …` padded with zeros. Replies (GetFeature) begin with **`B0`** in byte 0, so the firmware doesn't echo the report ID. `B1` = busy/NAK and `FF` = no data yet; on either, retry the GetFeature. **[C]** On the dock with the mouse switched off, every command (including `C4 08 00`) gets `B1` and then `B2`: the dock relays everything to the mouse and `B2` appears to mean "mouse not reachable". The dock answers nothing on its own. (hardware)
